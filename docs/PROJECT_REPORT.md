@@ -1,6 +1,6 @@
 # AeroLab: project report
 
-Status as of 27 September 2026. Version V0.1 (first playable build) plus a Streamlit dashboard.
+Status as of 27 September 2026. Version V0.1.1: the V0.1 playable build, a Streamlit dashboard, Git version control and reproducible experiment manifests.
 
 Attach this file at the start of any future session so work can continue from exactly this point. Section 14 has a ready-made message to paste.
 
@@ -30,6 +30,8 @@ What exists today is the V0.1 slice from that plan. It is a browser prototype, b
 | 4. Project zip | Split the game into sources, a build script, 20 automated tests, a README and a physics document. |
 | 5. Streamlit dashboard | Added a Streamlit app (Play, Flight Lab, Parameter Sweep) that drives the same JavaScript core from Python through Node, plus VS Code run, debug and task configurations. |
 | 6. This report | Written as the hand-off for future sessions. |
+| 7. External review | An outside review rated the concept highly and confirmed the architecture. Accepted: scope discipline, LLM kept out of control loops, AI never modifies physics directly, reproducibility before more AI. Adjusted: seeds only matter once uncertainty models exist; Unity port should be checked against golden reference results; reinforcement learning needs a faster step-by-step bridge; V0.2 orbit is equatorial only (section 15). |
+| 8. Git and experiments (V0.1.1) | Put the project under Git and tagged `v0.1`. Added experiment manifests, an Experiments page, a terminal reproduce tool, 10 reproducibility tests and a committed regression baseline (section 16). |
 
 Published game (claude.ai artifact): https://claude.ai/artifact/PccpSrP7zJHSB2DwXRLKbT
 
@@ -70,7 +72,14 @@ aerolab-v01/
 ├── tools/
 │   ├── build.py            Inlines core.js and ui.js into template.html → index.html
 │   └── run_flight.js       JSON-in, JSON-out runner used by the dashboard
+├── dashboard/aerolab_runner.py  Plain-Python access to the Node runner (no Streamlit)
+├── dashboard/experiments.py     Record, save, load, reproduce experiment manifests
+├── dashboard/pages/3_Experiments.py
+├── experiments/            Saved manifests; EXP-BASELINE-AeroModel-0.1.json is committed
+├── tools/reproduce.py      Reproduce experiments from the terminal
+├── tools/record_baseline.py  Record the regression baseline
 ├── tests/flight-tests.js   20 headless tests
+├── tests/test_experiments.py 10 reproducibility tests
 ├── docs/
 │   ├── PHYSICS_MODEL.md    Equations, assumptions, limits
 │   └── PROJECT_REPORT.md   This file
@@ -271,11 +280,15 @@ Each result holds `analysis`, `report`, `success`, `apogee`, `max`, `loss`, `fai
 
 ## 10. Tests
 
-`node tests/flight-tests.js` (or `npm test`). 20 tests, all passing:
+`npm test` runs everything: the 20 core tests, the 10 reproducibility tests and a reproduction of every saved experiment. Each can also run on its own (`node tests/flight-tests.js`, `python tests/test_experiments.py`, `python tools/reproduce.py --all`). All 30 tests pass and the baseline reproduces exactly.
+
+Core tests (`tests/flight-tests.js`):
 
 - Atmosphere: sea-level density, 11 km pressure and temperature, sea-level speed of sound, against US76 values.
 - Analysis: validity, mass sum (520 kg), rocket equation, stable with fins, unstable without, and three validation errors.
 - Flights: the eight scenarios marked in section 7.
+
+Reproducibility tests (`tests/test_experiments.py`): manifest schema and ID, recorded outcomes, core hash, save, refusal to overwrite, load round-trip, exact reproduction, no false code-change warning, a changed result is caught, a tiny difference counts as within tolerance.
 
 Run the tests after every change to `core.js`. If a test fails after a deliberate physics change, update the test and record the change in section 13.
 
@@ -298,10 +311,16 @@ Interface issues worth fixing:
 - Saved designs live in browser local storage, so designs saved in the standalone `index.html` and in the Streamlit Play page are separate.
 - Fonts need an internet connection; without it the system fallback is used.
 - The published artifact and the zip may drift apart if one is updated without the other.
+- The Experiments page lists the baseline first because of alphabetical sorting.
+
+Found with the new reproducibility tool:
+- **Solid-motor results are highly sensitive to the fixed thrust misalignment.** Changing it from 0.15° to 0.16° moved "Solid, large fins" from 120.8 to 106.4 km and "Solid, small fins" from 67.5 to 52.3 km, while the liquid designs, which attitude hold corrects, moved by centimetres. The solid-motor lesson therefore depends on an arbitrary constant. This is the first strong candidate for a Monte Carlo study once uncertainty models exist, and a reason to treat the solid-motor outcomes as indicative rather than precise.
 
 ---
 
 ## 12. Roadmap: what comes next
+
+Done since V0.1: Git with tag `v0.1`, and experiment manifests with reproduction (the review's "Experiment 3").
 
 From the original plan's order, the next stages are:
 
@@ -323,6 +342,7 @@ Smaller improvements that fit any time: reaction control thrusters for steering 
 | --- | --- | --- |
 | V0.1 | 27 Sep 2026 | First playable build: builder, flight, report. Simulation core AeroModel 0.1. 13 parts. Mission 002. |
 | V0.1 + dashboard | 27 Sep 2026 | Streamlit dashboard (Play, Flight Lab, Parameter Sweep), Node bridge, VS Code configs, 900 px layout breakpoint, theme injection. |
+| V0.1.1 | 27 Sep 2026 | Git repository, tag `v0.1`. Experiment manifests (schema `aerolab.experiment/1`), Save experiment on the sweep page, Experiments page with reproduce, `tools/reproduce.py`, `tools/record_baseline.py`, committed baseline `EXP-BASELINE-AeroModel-0.1`, 10 reproducibility tests. Physics unchanged (still AeroModel 0.1). |
 
 Add a row here for every future update.
 
@@ -340,3 +360,36 @@ Working rules to keep:
 - SI units internally; conversion only for display.
 - Rebuild with `python3 tools/build.py` and run `node tests/flight-tests.js` after every change.
 - Bump the `MODEL` version string whenever the physics changes, so old results stay traceable.
+- After any physics change, run `python tools/reproduce.py --all`. If the change was intended, commit it, bump the model version and run `python tools/record_baseline.py` to record a new baseline. Keep the old baseline file.
+- Commit before recording experiments, so each manifest points at a clean Git commit.
+
+---
+
+## 15. External review: decisions taken
+
+An outside review of the project (September 2026) was assessed. Decisions:
+
+- **Accepted:** single-player first; one simulation core shared by game and research; LLMs only for conversation, explanation and planning, never inside control loops; AI issues commands and never changes physics directly; every AI decision should carry a reason and evidence; NPC decisions at different rates (flight control fast, background agents slow); a first AI agent should be one Flight Dynamics Officer using rules and utility scoring, not a team.
+- **Adjusted:** random seeds become meaningful only when uncertainty models are added, since V0.1 has no randomness. The Unity port should pass against golden reference results exported from the JavaScript engine (for example apogee within 0.1% for every baseline case). Reinforcement learning needs a persistent, step-by-step simulation process; the one-flight-per-call runner is only suitable for sweeps. V0.2 orbit is equatorial, because the simulation is planar.
+- **Open questions that decide the architecture:** what "people thinking" means (react, have goals, reason about engineering, learn, collaborate, run experiments); the primary research question; the primary audience. Record the answers here once chosen.
+
+---
+
+## 16. Experiments and reproducibility (V0.1.1)
+
+**Manifest** (`dashboard/experiments.py`, schema `aerolab.experiment/1`), saved as `experiments/<experimentId>.json` and never overwritten:
+
+- `experimentId` (`EXP-YYYYMMDD-HHMMSS-xxxx`, or `EXP-BASELINE-…`), `name`, `kind`, `notes`, `createdAt` (UTC)
+- `model`: the `MODEL` versions from `core.js`
+- `code`: SHA-256 of `core.js` and `run_flight.js`, Git commit, tag description, and whether `src/` or `tools/` had uncommitted changes
+- `runtime`: Node version, Python version, platform
+- `runs`: for each run, `runId`, `label`, the exact `request` sent to the runner, `requestSha256`, `outcome`, `apogee_m`, `maxQ_Pa`, `maxG` and `resultSha256`
+- `manifestSha256`: hash of the whole record
+
+**Result fingerprint:** SHA-256 over success, apogee, maxima, losses, failure, events and a SHA-256 of the full telemetry. Telemetry is hashed rather than stored, so manifests stay small but any change anywhere in the flight is detected.
+
+**Reproduce:** reruns every stored request against the current code with no cache, then reports each run as *identical* (same fingerprint), *within tolerance* (same outcome and apogee within one part per million) or *different*. It also warns if the core hash or model version changed since recording. The overall verdict is "reproduced exactly", "reproduced within tolerance" or "not reproduced". `tools/reproduce.py` exits with code 1 when anything is not reproduced, so it can gate commits.
+
+**Cross-machine note:** results should be bit-identical on the same Node version. V8's maths functions are consistent across platforms, but a different Node major version could in principle change the last digits, which is what the tolerance level is for.
+
+**Baseline:** `experiments/EXP-BASELINE-AeroModel-0.1.json` holds the eleven learning-path designs from section 7, recorded from clean commit `45fc52c`.
