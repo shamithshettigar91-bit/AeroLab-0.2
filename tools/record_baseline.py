@@ -38,6 +38,30 @@ for label, stack, fins, plan in CASES:
         r["throttlePlan"] = plan
     runs.append(r); labels.append(label)
 
+# AeroModel 0.2: staging, orbit and flight programs. Each case is flown by a program,
+# so the program source is stored in the manifest and the run is fully reproducible.
+cat = runner.call({"cmd": "catalog"})
+REF, PROG = cat["designs"], {p["id"]: p["code"] for p in cat["programs"]}
+orbit_code = PROG["orbit"]
+no_circ = orbit_code[:orbit_code.index("  // --- plan the circularisation burn")] + "}\n"
+no_ignite = PROG["staging"].replace("  yield ship.wait(0.5);          // clear the spent stage\n  ship.ignite();", "")
+hot_stage = PROG["staging"].replace("yield ship.until(() => ship.propellant <= 0);\n  ship.log('Stage 1 burnout", "yield ship.wait(20);\n  ship.log('Stage 1 burnout", 1)
+V02 = [
+    ("Twin, staging program (M003)", "twin", "M003", PROG["staging"]),
+    ("Twin, stage 2 never lit (M003)", "twin", "M003", no_ignite),
+    ("Twin, separated while firing (M003)", "twin", "M003", hot_stage),
+    ("Orbiter, coast and circularise (M004)", "orbiter", "M004", orbit_code),
+    ("Orbiter, coast and circularise (M005)", "orbiter", "M005", orbit_code),
+    ("Orbiter, direct insertion (M005)", "orbiter", "M005", PROG["orbit_eta"]),
+    ("Orbiter, no circularisation (M004)", "orbiter", "M004", no_circ),
+    ("Sounder, hello program (M002)", "sounder", "M002", PROG["hello"]),
+]
+if "decoupler" in cat["parts"]:
+    for label, ref, mission, code in V02:
+        d = REF[ref]
+        runs.append({"design": {"stack": d["stack"], "fins": d["fins"]}, "mission": mission, "program": code, "seed": 1, "telemetry": True})
+        labels.append(label)
+
 model = runner.call({"cmd": "parts"})["model"]
 m = ex.record(f"{model['physics']} balance baseline", "Regression baseline", runs, labels, runner.fly(runs), model,
               "The tested learning path from PROJECT_REPORT section 7. Reproduce after any physics change.")
@@ -48,4 +72,4 @@ if m["code"]["gitDirty"]:
 path = ex.save(m)
 print(f"Saved {path.name}")
 for r in m["runs"]:
-    print(f"  {r['runId']}  {r['label']:<28} {r['outcome']:<18} {r['apogee_m'] / 1000:8.1f} km")
+    print(f"  {r['runId']}  {r['label']:<38} {r['outcome']:<18} {r['apogee_m'] / 1000:8.1f} km")

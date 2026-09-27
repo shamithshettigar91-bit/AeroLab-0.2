@@ -1,3 +1,5 @@
+import re
+
 import pandas as pd
 import streamlit as st
 
@@ -12,10 +14,25 @@ P = sb.parts()
 base = st.session_state.get("lab_design") or {
     "stack": ["nose_ogive", "payload_sci", "avionics", "tank_m", "eng_sparrow"], "fins": "fins_s"}
 base_sas = st.session_state.get("lab_sas", True)
+base_program = st.session_state.get("lab_program")
+base_mission = st.session_state.get("lab_mission", "M002")
+base_seed = st.session_state.get("lab_seed", 1)
+multi = "decoupler" in base["stack"]
 st.markdown("**Base design** (from Flight Lab): " + " → ".join(P[p]["name"] for p in base["stack"])
-            + (f", plus {P[base['fins']]['name'].lower()}" if base.get("fins") else ", no fins"))
+            + (f", plus {P[base['fins']]['name'].lower()}" if base.get("fins") else ", no fins")
+            + f". Mission **{base_mission}**" + (", flown by a flight program." if base_program else ", flown manually."))
 
-kind = st.radio("What to vary", ["Throttle through max Q", "Propellant tanks", "Engine and fins"], horizontal=True)
+CONST_RE = re.compile(r"^const\s+([A-Z_][A-Z0-9_]*)\s*=\s*(-?\d+(?:\.\d+)?)\s*;", re.M)
+consts = {m.group(1): float(m.group(2)) for m in CONST_RE.finditer(base_program or "")}
+kinds = ["Flight program constant"] if base_program else []
+if not multi:
+    kinds += ["Throttle through max Q", "Propellant tanks", "Engine and fins"]
+if not kinds:
+    st.info("This multi-stage design is flown manually. In Flight Lab, choose **Flight program** to sweep a program constant.")
+    st.stop()
+kind = st.radio("What to vary", kinds, horizontal=True)
+if multi and not base_program:
+    st.caption("Tank, engine and throttle sweeps edit single-stage designs only.")
 
 def with_stack(tanks=None, engine=None, fins="keep"):
     keep = [p for p in base["stack"] if P[p]["cat"] not in ("tank", "engine")]
@@ -26,7 +43,24 @@ def with_stack(tanks=None, engine=None, fins="keep"):
     return {"stack": stack, "fins": base.get("fins") if fins == "keep" else fins}
 
 runs, labels, xs = [], [], []
-if kind == "Throttle through max Q":
+if kind == "Flight program constant":
+    if not consts:
+        st.warning("The program has no top-level numeric constants to vary. Write them as  const NAME = 123;  on their own line.")
+    else:
+        c = st.columns(4)
+        cname = c[0].selectbox("Constant", list(consts))
+        v0 = consts[cname]
+        lo = c[1].number_input("From", value=float(v0 * 0.5 if v0 else -1.0))
+        hi = c[2].number_input("To", value=float(v0 * 1.5 if v0 else 1.0))
+        n = c[3].slider("Flights", 3, 25, 9)
+        st.caption(f"The program currently sets {cname} = {v0:g}. Every other line stays exactly as written in Flight Lab.")
+        for i in range(n):
+            v = lo + (hi - lo) * i / (n - 1)
+            v = round(v, 6)
+            src = CONST_RE.sub(lambda m: f"const {m.group(1)} = {v};" if m.group(1) == cname else m.group(0), base_program)
+            runs.append({"design": base, "mission": base_mission, "program": src, "seed": base_seed})
+            labels.append(f"{cname} = {v:g}"); xs.append(v)
+elif kind == "Throttle through max Q":
     c = st.columns(3)
     band = c[0].slider("Altitude band, km", 0.0, 40.0, (3.0, 20.0), step=0.5)
     lo, hi = c[1].slider("Throttle range, %", 40, 100, (40, 100), step=5)
@@ -73,10 +107,14 @@ for lab, x, res in zip(labels, xs, results):
     if res.get("error"):
         rows.append({"Variant": lab, "Outcome": "Invalid design"}); continue
     fail = res.get("failure")
+    orb = res.get("orbit") or {}
     rows.append({
         "Variant": lab,
         "Outcome": "Success" if res["success"] else ("Failed: " + fail["kind"] if fail else "Fell short"),
         "Apogee, km": round(res["apogee"] / 1000, 1),
+        "Periapsis, km": round(orb["periapsis"] / 1000, 1) if orb.get("periapsis") is not None else None,
+        "Apoapsis, km": round(orb["apoapsis"] / 1000, 1) if orb.get("apoapsis") is not None else None,
+        "Propellant left, kg": round(res.get("propellantLeft", 0)),
         "Max Q, kPa": round(res["max"]["q"] / 1000, 1),
         "Peak g": round(res["max"]["g"], 1),
         "ΔV, m/s": round(res["analysis"]["dvVac"]),
@@ -89,13 +127,28 @@ for lab, x, res in zip(labels, xs, results):
 df = pd.DataFrame(rows)
 ok = df[df["Outcome"] == "Success"]
 st.metric("Successful variants", f"{len(ok)} of {len(df)}")
-if kind == "Throttle through max Q":
+if kind == "Flight program constant":
+    import altair as alt  # installed with Streamlit
+    orbit_mission = "Periapsis, km" in df and df["Periapsis, km"].notna().any() and base_mission in ("M004", "M005", "M006")
+    ycol = "Periapsis, km" if orbit_mission else "Apogee, km"
+    df["x"] = xs
+    pts = alt.Chart(df).mark_line(point=alt.OverlayMarkDef(size=80, filled=True), color="#8FD3F4").encode(
+        x=alt.X("x:Q", title=labels[0].split(" = ")[0] if labels else "value"),
+        y=alt.Y(f"{ycol}:Q", title=ycol),
+        tooltip=["Variant", "Outcome", ycol, "Propellant left, kg"])
+    dots = alt.Chart(df).mark_point(size=160, filled=True).encode(
+        x="x:Q", y=f"{ycol}:Q",
+        color=alt.Color("Outcome:N", scale=alt.Scale(domain=sorted(set(df["Outcome"])),
+                        range=[{"Success": "#6CC4A1", "Fell short": "#E9C46A"}.get(o, "#EE6A55") for o in sorted(set(df["Outcome"]))])))
+    st.altair_chart((pts + dots).properties(height=380), use_container_width=True)
+    df = df.drop(columns=["x"])
+elif kind == "Throttle through max Q":
     chart = pd.DataFrame({"Throttle in band, %": xs, "Apogee, km": df.get("Apogee, km"), "Target, km": 100}).set_index("Throttle in band, %")
     st.line_chart(chart, height=360, x_label="Throttle in band, %", y_label="km")
 else:
     import altair as alt  # installed with Streamlit
     COLORS = {"Success": "#6CC4A1", "Fell short": "#E9C46A", "Failed: overload": "#EE6A55", "Failed: breakup": "#F28B50",
-              "Failed: tumble": "#C2412D", "Failed: gforce": "#D98BD0", "Failed: twr": "#9BB0C9", "Invalid design": "#56698A"}
+              "Failed: tumble": "#C2412D", "Failed: gforce": "#D98BD0", "Failed: twr": "#9BB0C9", "Failed: recontact": "#B06AD9", "Invalid design": "#56698A"}
     present = [o for o in COLORS if o in set(df["Outcome"])]
     bars = alt.Chart(df).mark_bar().encode(
         x=alt.X("Variant:N", sort=labels, title=None, axis=alt.Axis(labelAngle=0 if len(df) <= 5 else -35, labelLimit=240, labelOverlap=False)),

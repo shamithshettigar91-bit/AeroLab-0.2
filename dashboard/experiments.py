@@ -56,6 +56,22 @@ def result_digest(result: dict) -> dict:
     return {"summary": core, "sha256": sha256(_canon(core))}
 
 
+# Telemetry channels recorded by AeroModel 0.1. V0.2 added channels (stage,
+# apoapsis, periapsis...) without changing these, so an old experiment can be
+# checked for exact reproduction by projecting today's telemetry onto them.
+V01_CHANNELS = ("t", "alt", "speed", "g", "q", "mass", "mach", "thrust", "fuel", "down")
+
+
+def legacy_digest(result: dict) -> str:
+    """Hash in the V0.1.1 manifest format: telemetry limited to the V0.1 channels."""
+    tele = [{k: s[k] for k in V01_CHANNELS if k in s} for s in (result.get("telemetry") or [])]
+    core = {k: result.get(k) for k in ("success", "apogee", "max", "loss", "failure", "events", "error")}
+    core = {"success": core["success"], "apogee": core["apogee"], "max": core["max"], "loss": core["loss"],
+            "failure": core["failure"], "events": core["events"], "error": core["error"],
+            "telemetrySha256": sha256(_canon(tele))}
+    return sha256(_canon(core))
+
+
 # ---------- code version ----------
 def code_version() -> dict:
     info = {"coreSha256": sha256(runner.CORE.read_bytes()),
@@ -166,8 +182,8 @@ def reproduce(manifest: dict) -> dict:
     for entry, res in zip(manifest["runs"], results):
         d = result_digest(res)
         s = d["summary"]
-        if d["sha256"] == entry["resultSha256"]:
-            status = "identical"
+        if d["sha256"] == entry["resultSha256"] or legacy_digest(res) == entry["resultSha256"]:
+            status = "identical"  # the legacy form matches experiments recorded before V0.2
         else:
             a0, a1 = entry["apogee_m"] or 0.0, s["apogee"] or 0.0
             same_outcome = bool(s["success"]) == (entry["outcome"] == "Success")

@@ -66,12 +66,31 @@ def model() -> dict:
 
 
 @st.cache_data(show_spinner=False)
-def _analyze(design_json: str, _fp: float) -> dict:
-    return _call({"cmd": "analyze", "design": json.loads(design_json)})
+def _catalog(_fp: float) -> dict:
+    return _call({"cmd": "catalog"})
 
 
-def analyze(design: dict) -> dict:
-    return _analyze(json.dumps(design, sort_keys=True), src_fingerprint())
+def catalog() -> dict:
+    """Parts, missions, reference designs and example programs, straight from the core."""
+    return _catalog(src_fingerprint())
+
+
+@st.cache_data(show_spinner=False)
+def _analyze(design_json: str, mission: str | None, _fp: float) -> dict:
+    return _call({"cmd": "analyze", "design": json.loads(design_json), "mission": mission})
+
+
+def analyze(design: dict, mission: str | None = None) -> dict:
+    return _analyze(json.dumps(design, sort_keys=True), mission, src_fingerprint())
+
+
+@st.cache_data(show_spinner=False)
+def _check(program: str, _fp: float) -> dict:
+    return _call({"cmd": "check", "program": program})
+
+
+def check_program(program: str) -> dict:
+    return _check(program, src_fingerprint())
 
 
 @st.cache_data(show_spinner=False)
@@ -91,10 +110,20 @@ def build_game() -> str:
 
 
 def game_html() -> str:
-    newest_src = max(p.stat().st_mtime for p in SRC.iterdir())
+    newest_src = max(p.stat().st_mtime for p in [*SRC.iterdir(), *(ROOT / "vendor").iterdir()])
     if not GAME.exists() or GAME.stat().st_mtime < newest_src:
         build_game()
     return GAME.read_text(encoding="utf-8")
+
+
+def parse_stack(text: str) -> list[str]:
+    """One part id per line (or comma separated), top to bottom. Blank lines and # comments ignored."""
+    ids = []
+    for line in text.replace(",", "\n").splitlines():
+        line = line.split("#", 1)[0].strip()
+        if line:
+            ids.append(line)
+    return ids
 
 
 def make_design(nose: str | None, payload: str | None, avionics: bool,
@@ -122,8 +151,15 @@ def telemetry_frame(result: dict) -> pd.DataFrame:
     df["mass_kg"] = df["mass"]
     df["downrange_km"] = df["down"] / 1000
     df["propellant_pct"] = df["fuel"] * 100
-    return df[["time_s", "altitude_km", "velocity_m_s", "acceleration_g", "dynamic_pressure_kPa",
-               "mach", "thrust_kN", "mass_kg", "propellant_pct", "downrange_km"]]
+    cols = ["time_s", "altitude_km", "velocity_m_s", "acceleration_g", "dynamic_pressure_kPa",
+            "mach", "thrust_kN", "mass_kg", "propellant_pct", "downrange_km"]
+    if "stage" in df:  # channels added in AeroModel 0.2
+        df["orbital_speed_m_s"] = df["vorb"]
+        df["apoapsis_km"] = df["apo"].astype(float) / 1000
+        df["periapsis_km"] = (df["peri"].astype(float) / 1000).clip(lower=-200)
+        df["pitch_deg"] = df["pitch"]
+        cols += ["stage", "orbital_speed_m_s", "apoapsis_km", "periapsis_km", "pitch_deg"]
+    return df[cols]
 
 
 def channel_chart(df: pd.DataFrame, col: str, title: str, limit: tuple | None = None, height: int = 220):
