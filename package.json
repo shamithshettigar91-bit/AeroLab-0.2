@@ -1,10 +1,12 @@
 {
   "name": "aerolab",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "AeroLab V0.1: build a sounding rocket and carry a payload above 100 km",
   "private": true,
   "scripts": {
-    "test": "node tests/flight-tests.js",
+    "test": "node tests/flight-tests.js && python3 tests/test_experiments.py && python3 tools/reproduce.py --all",
+    "test:core": "node tests/flight-tests.js",
+    "reproduce": "python3 tools/reproduce.py --all",
     "build": "python3 tools/build.py"
   }
 }

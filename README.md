@@ -52,6 +52,21 @@ The dashboard opens at http://localhost:8501. Always run it from the project roo
 
 How it connects: Python never re-implements the physics. Every analysis and flight in the dashboard is sent to Node through `tools/run_flight.js`, which drives the same `src/core.js` the game uses. The game and the dashboard therefore always give identical results. When you edit anything in `src/`, the Play page rebuilds `index.html` automatically and the analysis caches refresh.
 
+## Experiments and reproducibility
+
+A sweep on the Parameter Sweep page can be saved as an **experiment**. The manifest (JSON, in `experiments/`) records the exact flight requests, the physics model versions, the code version (Git commit, tag, uncommitted-changes flag and a SHA-256 hash of `core.js` and the runner), the runtime (Node, Python, platform), and a SHA-256 fingerprint of every result, including its full telemetry. Experiments are never overwritten.
+
+The **Experiments** page lists saved manifests (or accepts an uploaded one), shows the record, and reruns it without any cache. Each run is reported as identical, within tolerance (same outcome, apogee within one part per million) or different, with a warning if the simulation core or model version has changed since recording.
+
+From the terminal:
+
+```
+python tools/reproduce.py --all            reproduce every saved experiment
+python tools/reproduce.py experiments/EXP-….json
+```
+
+`experiments/EXP-BASELINE-V0.1.json` is committed as a regression baseline: the eleven designs that define the V0.1 learning path. After any physics change, `reproduce.py --all` shows exactly which outcomes moved. If a change is intentional, bump the model version in `core.js` and record a new baseline.
+
 ## Project layout
 
 ```
@@ -63,12 +78,18 @@ aerolab-v01/
 │   └── template.html     Page structure and styles
 ├── dashboard/
 │   ├── Home.py           Streamlit entry point, Play page
-│   ├── sim_bridge.py     Python ↔ Node bridge, caching, chart helpers
-│   └── pages/            Flight Lab and Parameter Sweep
+│   ├── sim_bridge.py     Streamlit bridge: caching, chart helpers
+│   ├── aerolab_runner.py Plain-Python access to the Node runner
+│   ├── experiments.py    Record, save, load and reproduce experiments
+│   └── pages/            Flight Lab, Parameter Sweep, Experiments
+├── experiments/          Saved experiment manifests (JSON)
 ├── tools/
 │   ├── build.py          Combines src/ into index.html
-│   └── run_flight.js     JSON-in, JSON-out runner for the core
-├── tests/flight-tests.js Headless tests of the core
+│   ├── run_flight.js     JSON-in, JSON-out runner for the core
+│   └── reproduce.py      Reproduce experiments from the terminal
+├── tests/
+│   ├── flight-tests.js   20 headless tests of the core
+│   └── test_experiments.py 10 reproducibility tests
 ├── .vscode/              Run/debug configurations and tasks
 ├── .streamlit/config.toml Dashboard theme
 ├── requirements.txt      Python packages

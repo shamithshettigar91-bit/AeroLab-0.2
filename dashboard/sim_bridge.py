@@ -7,16 +7,16 @@ Streamlit dashboard and the browser game always agree.
 from __future__ import annotations
 
 import json
-import shutil
 import subprocess
 import sys
-from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 
-ROOT = Path(__file__).resolve().parent.parent
-RUNNER = ROOT / "tools" / "run_flight.js"
+import aerolab_runner as runner
+
+ROOT = runner.ROOT
+RUNNER = runner.RUNNER
 BUILD = ROOT / "tools" / "build.py"
 GAME = ROOT / "index.html"
 SRC = ROOT / "src"
@@ -24,12 +24,11 @@ SRC = ROOT / "src"
 RANK = {"nose": 0, "payload": 1, "avionics": 2, "tank": 3, "engine": 4}
 
 
-class BridgeError(RuntimeError):
-    pass
+BridgeError = runner.RunnerError
 
 
 def node_path() -> str | None:
-    return shutil.which("node")
+    return runner.node_path()
 
 
 def require_node() -> str:
@@ -44,18 +43,8 @@ def require_node() -> str:
 
 
 def _call(payload: dict, timeout: int = 600) -> dict:
-    node = require_node()
-    proc = subprocess.run(
-        [node, str(RUNNER)],
-        input=json.dumps(payload),
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-        cwd=ROOT,
-    )
-    if proc.returncode != 0:
-        raise BridgeError(proc.stderr.strip() or "The simulation runner failed.")
-    return json.loads(proc.stdout)
+    require_node()
+    return runner.call(payload, timeout)
 
 
 def src_fingerprint() -> float:

@@ -1,6 +1,7 @@
 import pandas as pd
 import streamlit as st
 
+import experiments as ex
 import sim_bridge as sb
 
 st.set_page_config(page_title="AeroLab Parameter Sweep", page_icon="📈", layout="wide")
@@ -55,15 +56,18 @@ else:
             labels.append(f"{P[e]['name']}, {P[f]['name'].lower() if f else 'no fins'}"); xs.append(labels[-1])
 
 st.caption(f"{len(runs)} flights")
+for r in runs:
+    r["telemetry"] = True  # experiment fingerprints cover the full flight history
 if st.button("Run sweep", type="primary", disabled=not runs):
     with st.spinner(f"Flying {len(runs)} vehicles…"):
-        st.session_state["sweep"] = (kind, labels, xs, sb.fly(runs))
+        st.session_state["sweep"] = (kind, labels, xs, sb.fly(runs), runs)
+        st.session_state.pop("sweep_saved", None)
 
 if "sweep" not in st.session_state or st.session_state["sweep"][0] != kind:
     st.info("Set up the sweep and press **Run sweep**.")
     st.stop()
 
-_, labels, xs, results = st.session_state["sweep"]
+_, labels, xs, results, sweep_runs = st.session_state["sweep"]
 rows = []
 for lab, x, res in zip(labels, xs, results):
     if res.get("error"):
@@ -103,3 +107,18 @@ else:
 st.dataframe(df, hide_index=True, use_container_width=True)
 st.download_button("Download results CSV", df.to_csv(index=False).encode(), "aerolab_sweep.csv", "text/csv")
 st.caption("Each variant is one deterministic flight, not a probability. Monte Carlo with uncertainty models comes with research mode.")
+
+st.subheader("Save as experiment")
+st.caption("Stores the exact flight requests, model and code versions, and a fingerprint of every result in experiments/. "
+           "Open the Experiments page to reproduce it later.")
+c1, c2 = st.columns([1, 2])
+exp_name = c1.text_input("Experiment name", value=kind)
+exp_notes = c2.text_input("Notes (optional)", placeholder="What question does this sweep answer?")
+if st.button("Save experiment", disabled="sweep_saved" in st.session_state):
+    m = ex.record(exp_name, kind, sweep_runs, labels, results, sb.model(), exp_notes)
+    path = ex.save(m)
+    st.session_state["sweep_saved"] = m["experimentId"]
+    if m["code"]["gitDirty"]:
+        st.warning("Saved, but the simulation code has uncommitted changes. Commit them so this experiment can be traced to a Git commit.")
+if "sweep_saved" in st.session_state:
+    st.success(f"Saved as **{st.session_state['sweep_saved']}**. Find it on the Experiments page.")
