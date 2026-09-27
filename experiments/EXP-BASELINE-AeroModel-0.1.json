@@ -1,0 +1,294 @@
+{
+  "schema": "aerolab.experiment/1",
+  "experimentId": "EXP-BASELINE-AeroModel-0.1",
+  "name": "AeroModel 0.1 balance baseline",
+  "kind": "Regression baseline",
+  "notes": "The tested learning path from PROJECT_REPORT section 7. Reproduce after any physics change.",
+  "createdAt": "2026-09-27T14:01:38+00:00",
+  "model": {
+    "physics": "AeroModel 0.1",
+    "atmosphere": "US76-lite 1.0",
+    "gravity": "PointMass 1.0",
+    "integrator": "RK4 at 100 Hz"
+  },
+  "code": {
+    "coreSha256": "49dedadc66258eae0f2919b594247436643b9694ebecd15e1f2bc2f8ffba19b7",
+    "runnerSha256": "6e2562127615311a6de2ef6bceebcd64da7210af4fc8e44a5ad56ece2851d0c9",
+    "gitCommit": "45fc52cac7a72d90e52c1be6ed5036525fd2344c",
+    "gitTag": "v0.1-2-g45fc52c",
+    "gitDirty": false
+  },
+  "runtime": {
+    "node": "v22.22.2",
+    "python": "3.12.3",
+    "platform": "Linux-6.18.44-fc-v37-x86_64-with-glibc2.39"
+  },
+  "runs": [
+    {
+      "runId": "R001",
+      "label": "Starter, no fins",
+      "request": {
+        "design": {
+          "stack": [
+            "nose_ogive",
+            "payload_sci",
+            "avionics",
+            "tank_m",
+            "eng_sparrow"
+          ],
+          "fins": null
+        },
+        "stopAtApogee": true,
+        "telemetry": true
+      },
+      "requestSha256": "36a2ce84e74e5fd96756e491c3d8141f56b687e4646b2578028dd233d9b225e2",
+      "outcome": "Failed: breakup",
+      "apogee_m": 34868.148082480766,
+      "maxQ_Pa": 68566.52167663179,
+      "maxG": 8.567098745612354,
+      "resultSha256": "afdd1645050ec3a7fccb7def9e5984b68355a4f08764c98f0ee9079ad85b5e73"
+    },
+    {
+      "runId": "R002",
+      "label": "Starter, small fins",
+      "request": {
+        "design": {
+          "stack": [
+            "nose_ogive",
+            "payload_sci",
+            "avionics",
+            "tank_m",
+            "eng_sparrow"
+          ],
+          "fins": "fins_s"
+        },
+        "stopAtApogee": true,
+        "telemetry": true
+      },
+      "requestSha256": "1fdc2d6d5614e69ee93641467db23e935599b67a776719ed42ac943dc845d737",
+      "outcome": "Success",
+      "apogee_m": 134526.39632236026,
+      "maxQ_Pa": 62974.80495251083,
+      "maxG": 7.923195271558439,
+      "resultSha256": "27fb05ce47ea5b4f619a5230289ffa31e9a82fdbeb947c0c77d82c8749ba30ef"
+    },
+    {
+      "runId": "R003",
+      "label": "Starter, large fins",
+      "request": {
+        "design": {
+          "stack": [
+            "nose_ogive",
+            "payload_sci",
+            "avionics",
+            "tank_m",
+            "eng_sparrow"
+          ],
+          "fins": "fins_l"
+        },
+        "stopAtApogee": true,
+        "telemetry": true
+      },
+      "requestSha256": "2b8a09bfe232e5a9cf13e41d4004cbba63ca03b7a789594e924c9cb52a5eeed3",
+      "outcome": "Success",
+      "apogee_m": 111531.59783975407,
+      "maxQ_Pa": 58089.59716746792,
+      "maxG": 7.326434990169414,
+      "resultSha256": "a3233bb2152a21b828e3fe327d4e617f172a8b92bb23783546cdba066ee02e18"
+    },
+    {
+      "runId": "R004",
+      "label": "Tank S, small fins",
+      "request": {
+        "design": {
+          "stack": [
+            "nose_ogive",
+            "payload_sci",
+            "avionics",
+            "tank_s",
+            "eng_sparrow"
+          ],
+          "fins": "fins_s"
+        },
+        "stopAtApogee": true,
+        "telemetry": true
+      },
+      "requestSha256": "388192b30708648a473fa97b8bd72171c77e75bb79d07d53b071f95d7c107e84",
+      "outcome": "Fell short",
+      "apogee_m": 20425.25549173914,
+      "maxQ_Pa": 97505.19947000712,
+      "maxG": 7.603199989948395,
+      "resultSha256": "2c44126902b70be4678fccb27f2e0929c9842afc8558ff463061c67598d86e0d"
+    },
+    {
+      "runId": "R005",
+      "label": "Heavy payload, tank M",
+      "request": {
+        "design": {
+          "stack": [
+            "nose_ogive",
+            "payload_heavy",
+            "avionics",
+            "tank_m",
+            "eng_sparrow"
+          ],
+          "fins": "fins_s"
+        },
+        "stopAtApogee": true,
+        "telemetry": true
+      },
+      "requestSha256": "b5fa260bdec5b18f8ac5d649cb70c17f51b3d24cad93f11d591e096f31060d1e",
+      "outcome": "Fell short",
+      "apogee_m": 85319.88809585012,
+      "maxQ_Pa": 56132.21768771988,
+      "maxG": 5.8083480659209785,
+      "resultSha256": "2c7bc99de0cb16ff83ccfd19891c9ddd52d77c3ee384773b0f4f650019e07a1f"
+    },
+    {
+      "runId": "R006",
+      "label": "Heavy payload, tank L",
+      "request": {
+        "design": {
+          "stack": [
+            "nose_ogive",
+            "payload_heavy",
+            "avionics",
+            "tank_l",
+            "eng_sparrow"
+          ],
+          "fins": "fins_s"
+        },
+        "stopAtApogee": true,
+        "telemetry": true
+      },
+      "requestSha256": "6ba00a4dc695750ba88f5fae911110635f19291eb9c3028da7f594b4ec9da54d",
+      "outcome": "Success",
+      "apogee_m": 168446.42181988154,
+      "maxQ_Pa": 39528.102382460325,
+      "maxG": 5.766277729811895,
+      "resultSha256": "9ffa3e226b2eacd020b6a5e64f6ad7ff8af20d61b30576a4de9b78b4e0e45766"
+    },
+    {
+      "runId": "R007",
+      "label": "Heron, full throttle",
+      "request": {
+        "design": {
+          "stack": [
+            "nose_ogive",
+            "payload_sci",
+            "avionics",
+            "tank_l",
+            "eng_heron"
+          ],
+          "fins": "fins_s"
+        },
+        "stopAtApogee": true,
+        "telemetry": true
+      },
+      "requestSha256": "b2f274ec27e6be34320a7eb39450c93aba464fe76817259c92c4084c7028375c",
+      "outcome": "Failed: overload",
+      "apogee_m": 3954.2137291599065,
+      "maxQ_Pa": 120061.3100343052,
+      "maxG": 5.1916168238905165,
+      "resultSha256": "22ae702ad6c2060c407fff846c9e3ecc2f929c7a0818991a47bb8e1c5c67f07b"
+    },
+    {
+      "runId": "R008",
+      "label": "Heron, 45% from 3 to 20 km",
+      "request": {
+        "design": {
+          "stack": [
+            "nose_ogive",
+            "payload_sci",
+            "avionics",
+            "tank_l",
+            "eng_heron"
+          ],
+          "fins": "fins_s"
+        },
+        "stopAtApogee": true,
+        "telemetry": true,
+        "throttlePlan": [
+          {
+            "from": 3000,
+            "to": 20000,
+            "throttle": 0.45
+          }
+        ]
+      },
+      "requestSha256": "1e93f42dac36ef6684e79d841b8ee899141d89356412e51a1286d7fd832fc5ad",
+      "outcome": "Success",
+      "apogee_m": 214369.1885738792,
+      "maxQ_Pa": 103337.08924617745,
+      "maxG": 14.976943686466155,
+      "resultSha256": "cf7bf01c870301bf4a538735790fd774679d897994decbb6dfea3870f0ddf039"
+    },
+    {
+      "runId": "R009",
+      "label": "Solid, no fins",
+      "request": {
+        "design": {
+          "stack": [
+            "nose_ogive",
+            "payload_sci",
+            "srm_needle"
+          ],
+          "fins": null
+        },
+        "stopAtApogee": true,
+        "telemetry": true
+      },
+      "requestSha256": "39e097afa990ffb23052631774fff7c0e83865b50b5e812351b7b410d016dfe5",
+      "outcome": "Failed: tumble",
+      "apogee_m": 128.39507716335356,
+      "maxQ_Pa": 2747.4671933584614,
+      "maxG": 2.924776346475724,
+      "resultSha256": "5bb6d3a2bf81d2e79af5cbb47019629f104c608021628c6c765ed57b70f51e54"
+    },
+    {
+      "runId": "R010",
+      "label": "Solid, small fins",
+      "request": {
+        "design": {
+          "stack": [
+            "nose_ogive",
+            "payload_sci",
+            "srm_needle"
+          ],
+          "fins": "fins_s"
+        },
+        "stopAtApogee": true,
+        "telemetry": true
+      },
+      "requestSha256": "5f5d1c4ff7f7ed7217524cae6c7e8ab180304e9ef902ff2a6c013ece9566c961",
+      "outcome": "Fell short",
+      "apogee_m": 67464.58506223094,
+      "maxQ_Pa": 106361.8578886378,
+      "maxG": 10.256232173566053,
+      "resultSha256": "1b029b6aca0bd913b5ea8316f44ab3bbb28d57e5e70ffe76e573b8075e35fe6b"
+    },
+    {
+      "runId": "R011",
+      "label": "Solid, large fins",
+      "request": {
+        "design": {
+          "stack": [
+            "nose_ogive",
+            "payload_sci",
+            "srm_needle"
+          ],
+          "fins": "fins_l"
+        },
+        "stopAtApogee": true,
+        "telemetry": true
+      },
+      "requestSha256": "7e9b4b8c94aa94ea9e50d821222540417b75c4f017d3a008609497884ee853e6",
+      "outcome": "Success",
+      "apogee_m": 120814.02849501278,
+      "maxQ_Pa": 86247.50053074762,
+      "maxG": 10.889030773129825,
+      "resultSha256": "1a9c412913a8f114b583f5463a200ea004a7d271dceb9c7be4cdbf7b9f2ccaea"
+    }
+  ],
+  "manifestSha256": "50a4c518d2bf51f97592c587e020c59d81f4d86141defa50b2538f8eb3737f3c"
+}
