@@ -3,16 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>AeroLab V0.1: Reach 100 km</title>
+<title>AeroLab V0.2: build, program, reach orbit</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root{
   --bg:#16233A; --panel:#1D2E4A; --panel-2:#243858; --line:#34507A; --text:#E7EDF4; --muted:#9BB0C9;
   --accent:#F2A541; --accent-ink:#2A1A00; --good:#6CC4A1; --caution:#E9C46A; --bad:#EE6A55; --data:#8FD3F4;
   --font:'Barlow',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;
   --cond:'Barlow Condensed','Arial Narrow','Roboto Condensed',system-ui,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,'SFMono-Regular',Menlo,Consolas,monospace;
   box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
   color-scheme:dark;
 }
@@ -51,7 +52,7 @@ h1,h2,h3{font-family:var(--cond);font-weight:600;margin:0;letter-spacing:.01em}
 .flag.done{background:var(--good)}
 
 /* Builder */
-.builder{display:grid;grid-template-columns:290px minmax(0,1fr) 340px;gap:0;height:calc(100vh - 57px - 64px);min-height:560px}
+.builder{display:grid;grid-template-columns:290px minmax(0,1fr) 340px;gap:0}
 .col{overflow:auto;padding:16px;border-right:1px solid var(--line)}
 .col:last-child{border-right:0}
 .col h2{font-size:19px;margin-bottom:10px}
@@ -111,12 +112,12 @@ h1,h2,h3{font-family:var(--cond);font-weight:600;margin:0;letter-spacing:.01em}
 .flight{position:fixed;inset:0;background:#000;overflow:hidden;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 #fcv{position:absolute;inset:0;width:100%;height:100%;display:block}
 .hud{position:absolute;color:#EAF1F8;text-shadow:0 1px 2px rgba(0,0,0,.5);font-variant-numeric:tabular-nums}
-.hud-l{left:16px;top:calc(14px + env(safe-area-inset-top,0px));width:230px}
+.hud-l{left:16px;top:calc(14px + env(safe-area-inset-top,0px));width:272px}
 .alt{font-family:var(--cond);font-weight:700;font-size:56px;line-height:1}
 .alt small{font-size:22px;font-weight:500;margin-left:4px}
 .tplus{font-family:var(--cond);font-size:20px;opacity:.85;margin-bottom:6px}
 .readouts{display:grid;grid-template-columns:auto auto;gap:2px 14px;margin-top:10px;font-size:14.5px;background:rgba(10,20,36,.55);padding:10px 12px;border-radius:8px;backdrop-filter:blur(4px)}
-.readouts .k{opacity:.78}
+.readouts .k{opacity:.78;white-space:nowrap}
 .readouts .v{text-align:right;font-weight:600;white-space:nowrap}
 .meter{height:5px;background:rgba(255,255,255,.15);border-radius:3px;margin:3px 0 8px;overflow:hidden}
 .meter div{height:100%;background:#F2A541}
@@ -125,7 +126,7 @@ h1,h2,h3{font-family:var(--cond);font-weight:600;margin:0;letter-spacing:.01em}
 .objective.done .flag{background:#6CC4A1}
 .hud-r{right:16px;top:calc(14px + env(safe-area-inset-top,0px));width:220px}
 #traj{width:220px;height:150px;background:rgba(10,20,36,.55);border-radius:8px;display:block}
-.log{left:16px;bottom:calc(92px + env(safe-area-inset-bottom,0px));width:340px;max-width:calc(100% - 32px);font-size:13.5px;display:flex;flex-direction:column-reverse;gap:3px;max-height:170px;overflow:hidden;pointer-events:none}
+.log{right:16px;bottom:calc(132px + env(safe-area-inset-bottom,0px));width:320px;align-items:flex-end;max-width:calc(100% - 32px);font-size:13.5px;display:flex;flex-direction:column-reverse;gap:3px;max-height:210px;overflow:hidden;pointer-events:none}
 .log div{background:rgba(10,20,36,.55);padding:3px 9px;border-radius:5px;width:max-content;max-width:100%}
 .log .good{color:#8FE0BE} .log .bad{color:#FF9C8A}
 .log b{font-weight:600;opacity:.75;margin-right:6px}
@@ -188,21 +189,114 @@ kbd{font-family:var(--font);font-size:12px;border:1px solid rgba(255,255,255,.35
   .log{display:none}
 }
 @media (prefers-reduced-motion: reduce){ *{scroll-behavior:auto!important} }
+
+/* V0.2 additions */
+.linkbtn{background:none;border:0;padding:0;font:inherit;color:var(--accent);text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+.linkbtn:hover{color:var(--text)}
+#app{display:flex;flex-direction:column;height:100vh}
+#app > .top,#app > .bar{flex:none}
+#app > .screen{flex:1 1 auto;min-height:0}
+#app > .screen.hidden{display:none}
+.builder > *,.programmer > *{min-height:0}
+.editor-col .editor{min-height:0}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.tabs{display:flex;gap:4px;margin-left:12px}
+.tabs button{background:transparent;border:1px solid transparent;border-radius:6px;padding:6px 14px;font-family:var(--cond);font-size:17px;font-weight:600;color:var(--muted)}
+.tabs button.on{color:var(--text);border-color:var(--line);background:var(--panel-2)}
+.tabs button:hover{color:var(--text)}
+.mission-chip select{background:var(--panel-2);border:1px solid var(--line);border-radius:6px;padding:6px 8px;max-width:340px}
+.refload{display:flex;flex-direction:column;gap:4px;margin-bottom:12px;font-size:13px}
+.refload select{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:6px 8px}
+.addto{font-size:13px;color:var(--muted);margin-bottom:12px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.addto > span{flex-basis:100%}
+.addto button{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:2px 10px;font-size:13px}
+.addto button.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.stack li.stagehead{background:transparent;border:0;padding:8px 2px 3px;font-family:var(--cond);font-weight:600;font-size:15px;color:var(--muted);cursor:pointer}
+.stack li.stagehead.active{color:var(--accent)}
+.stack li.stagehead + li{border-top-left-radius:6px;border-top-right-radius:6px}
+.btn.small{padding:5px 10px;font-size:13.5px;margin-top:8px}
+.stagetbl{width:100%;border-collapse:collapse;font-size:13.5px;margin:-6px 0 14px}
+.stagetbl th{font-weight:500;color:var(--muted);text-align:right;padding:4px 0 4px 6px;border-bottom:1px solid var(--line)}
+.stagetbl th:first-child,.stagetbl td:first-child{text-align:left;padding-left:0}
+.stagetbl td{text-align:right;padding:4px 0 4px 6px;border-bottom:1px solid var(--line)}
+.programmer{display:grid;grid-template-columns:270px minmax(0,1fr) 330px}
+.small-p{font-size:13.5px;margin:0 0 12px}
+.excard{display:block;width:100%;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:9px 11px;margin-bottom:8px}
+.excard:hover{border-color:var(--accent)}
+.excard.on{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+.excard strong{display:block;font-size:14.5px}
+.excard small{display:block;color:var(--muted);font-size:13px;margin-top:2px}
+.excard em{font-style:normal;font-size:12.5px;color:var(--data)}
+.editor-col{display:flex;flex-direction:column;min-width:0;border-right:1px solid var(--line);background:var(--panel-2)}
+.ed-bar{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
+.ed-bar strong{font-family:var(--cond);font-size:18px;font-weight:600}
+.spacer{flex:1}
+.toggle{display:flex;align-items:center;gap:6px;font-size:14px}
+.btn.primary-ghost{border-color:var(--accent);color:var(--accent);font-weight:600}
+.editor{flex:1;display:flex;min-height:260px;position:relative;overflow:hidden;background:var(--panel)}
+.gutter{margin:0;padding:12px 8px 12px 12px;text-align:right;color:var(--muted);font:13px/1.55 var(--mono);user-select:none;overflow:hidden;min-width:44px;border-right:1px solid var(--line);background:var(--panel-2)}
+.gutter .err{color:var(--bad);font-weight:600}
+#code{flex:1;resize:none;border:0;outline:0;padding:12px 14px;font:13px/1.55 var(--mono);background:transparent;color:var(--text);white-space:pre;overflow:auto;tab-size:2}
+#code:focus-visible{box-shadow:inset 0 0 0 2px var(--accent)}
+.output{flex:none;border-top:1px solid var(--line);padding:12px 14px;max-height:45%;overflow:auto;font-size:14px;background:var(--panel)}
+.output .ok{color:var(--good)} .output .bad{color:var(--bad)}
+.output .res{display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:14px;align-items:start}
+.output .res canvas{width:220px;height:130px;border:1px solid var(--line);border-radius:6px}
+.output .evs{font:12.5px/1.5 var(--mono);color:var(--muted);margin-top:6px;max-height:140px;overflow:auto;white-space:pre-wrap}
+.output .acts{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.progress{height:4px;background:var(--panel-2);border-radius:2px;overflow:hidden;margin-top:8px}
+.progress div{height:100%;background:var(--accent);width:0}
+.api h3{font-size:14px;color:var(--muted);font-weight:500;margin:12px 0 6px}
+.api dl{margin:0;font-size:13px}
+.api dt{font:12.5px/1.4 var(--mono);color:var(--data);margin-top:7px}
+.api dd{margin:1px 0 0;color:var(--text)}
+.api .rd{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:12.5px}
+.api .rd code{font-family:var(--mono);color:var(--data)}
+.api .rd span{color:var(--muted)}
+.stagebox,.progbox{background:rgba(10,20,36,.55);border-radius:8px;padding:8px 11px;font-size:13.5px;margin-bottom:8px;backdrop-filter:blur(4px)}
+.stagebox b,.progbox b{font-family:var(--cond);font-size:16px;font-weight:600}
+.progbox.err{box-shadow:inset 3px 0 0 #EE6A55}
+.progbox.run{box-shadow:inset 3px 0 0 #6CC4A1}
+.stagebar{display:flex;gap:3px;margin-top:5px}
+.stagebar span{flex:1;height:6px;border-radius:2px;background:rgba(255,255,255,.2)}
+.stagebar span.now{background:#F2A541}
+.stagebar span.gone{background:rgba(255,255,255,.06)}
+#mapcv{position:absolute;inset:0;width:100%;height:100%;display:block;background:#050913}
+.log .program{color:#A9D8F5}
+.controls select.btn{padding:8px 8px}
+@media (max-width: 900px){
+  #app{height:auto;min-height:100vh}
+  #app > .screen{flex:none}
+  .programmer{grid-template-columns:1fr}
+  .editor-col{order:-1;height:78vh}
+  .top{flex-wrap:wrap;row-gap:8px}
+  .tabs{margin-left:auto}
+  .tabs button{padding:5px 10px;font-size:15px}
+  .mission-chip{flex-basis:100%;display:flex;align-items:center;gap:8px}
+  .mission-chip select{max-width:none;flex:1}
+  .output .res{grid-template-columns:1fr}
+  .stagebox,.progbox{display:none}
+}
 </style>
 </head>
 <body>
 <div id="app">
   <header class="top">
-    <div class="brand"><h1>AeroLab</h1><span>V0.1 prototype</span></div>
-    <div class="mission-chip"><span class="flag" id="missionFlag"></span><span><b>Mission 002</b> Carry the science payload above 100 km</span></div>
+    <div class="brand"><h1>AeroLab</h1><span>V0.2</span></div>
+    <nav class="tabs" role="tablist" aria-label="Screens">
+      <button role="tab" id="tabBuild" class="on" aria-selected="true">Build</button>
+      <button role="tab" id="tabProgram" aria-selected="false">Program</button>
+    </nav>
+    <div class="mission-chip"><span class="flag" id="missionFlag"></span><label for="missionSel" class="sr">Mission</label><select id="missionSel" aria-label="Mission"></select></div>
   </header>
 
-  <main class="builder" id="builder">
+  <main class="builder screen" id="builder">
     <section class="col" aria-label="Parts">
       <h2>Parts</h2>
+      <div class="refload"><label for="refSel" class="muted">Start from a reference rocket</label><select id="refSel"><option value="">Choose…</option></select></div>
+      <div class="addto" id="addTo"></div>
       <div id="palette"></div>
     </section>
-
     <section class="center" aria-label="Vehicle">
       <div class="canvas-wrap">
         <canvas id="bcv" aria-label="Side view of your vehicle"></canvas>
@@ -210,20 +304,44 @@ kbd{font-family:var(--font);font-size:12px;border:1px solid rgba(255,255,255,.35
       </div>
       <div class="inspector" id="inspector"></div>
     </section>
-
     <section class="col" aria-label="Engineering">
-      <div class="mission">
-        <h3>Reach space with a science payload</h3>
-        Carry the payload past the Kármán line at 100 km, where space begins by convention. One stage, one engine. Build a vehicle, check the numbers below, then launch.
-      </div>
+      <div class="mission" id="missionBrief"></div>
       <h2>Your stack</h2>
       <ul class="stack" id="stack"></ul>
       <div id="finsRow"></div>
+      <button class="btn small" id="addStageBtn">Add a stage below</button>
       <h2 style="margin-top:16px">Engineering</h2>
       <table class="eng" id="engTable"></table>
+      <div id="stageTable"></div>
       <h2>Checks</h2>
       <ul class="issues" id="issues"></ul>
       <div class="models" id="models"></div>
+    </section>
+  </main>
+
+  <main class="programmer screen hidden" id="programmer">
+    <section class="col" aria-label="Examples">
+      <h2>Examples</h2>
+      <p class="muted small-p">Each example loads with the rocket it was written for. All of them are flown by the automated tests.</p>
+      <div id="examples"></div>
+    </section>
+    <section class="editor-col" aria-label="Flight program">
+      <div class="ed-bar">
+        <strong id="progTitle">Flight program</strong>
+        <span class="spacer"></span>
+        <label class="toggle"><input type="checkbox" id="useProg" checked> Fly with this program</label>
+        <button class="btn" id="checkBtn" title="Ctrl+Enter">Check</button>
+        <button class="btn primary-ghost" id="testBtn">Test flight</button>
+      </div>
+      <div class="editor" id="editorWrap">
+        <pre class="gutter" id="gutter" aria-hidden="true">1</pre>
+        <textarea id="code" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Flight program source code"></textarea>
+      </div>
+      <div class="output" id="output" aria-live="polite"><span class="muted">Press Check to compile, or Test flight to fly the whole mission instantly.</span></div>
+    </section>
+    <section class="col" aria-label="Ship reference">
+      <h2>The ship object</h2>
+      <div id="apiRef"></div>
     </section>
   </main>
 
@@ -241,25 +359,35 @@ kbd{font-family:var(--font);font-size:12px;border:1px solid rgba(255,255,255,.35
 
 <div class="flight hidden" id="flight">
   <canvas id="fcv"></canvas>
+  <canvas id="mapcv" class="hidden" aria-label="Map view of the orbit"></canvas>
   <div class="hud hud-l">
     <div class="tplus" id="tplus">T– 00:00</div>
     <div class="alt" id="hAlt">0.00<small>km</small></div>
     <div class="readouts" id="readouts"></div>
   </div>
-  <div class="hud objective" id="objective"><span class="flag"></span><span id="objText">Payload above 100 km</span></div>
-  <div class="hud hud-r"><canvas id="traj" width="220" height="150" aria-label="Trajectory: altitude against downrange distance"></canvas></div>
+  <div class="hud objective" id="objective"><span class="flag"></span><span id="objText"></span></div>
+  <div class="hud hud-r">
+    <div class="stagebox" id="stagebox"></div>
+    <div class="progbox" id="progbox"></div>
+    <canvas id="traj" width="220" height="150" aria-label="Trajectory: altitude against downrange"></canvas>
+  </div>
   <div class="hud log" id="log"></div>
   <div class="banner hidden" id="banner"></div>
   <div class="controls">
     <button class="btn primary" id="igniteBtn">Ignite</button>
     <button class="btn danger hidden" id="cutBtn">Cut engine</button>
+    <button class="btn" id="stageBtn">Stage</button>
     <div class="ctl" id="thrCtl"><span>Throttle</span><input type="range" id="thr" min="40" max="100" value="100" step="5" aria-label="Throttle"><span id="thrVal">100%</span></div>
     <button class="btn" id="pl" aria-label="Pitch west">◀ Pitch</button>
     <button class="btn" id="pr" aria-label="Pitch east">Pitch ▶</button>
-    <button class="btn on" id="sasBtn">Hold attitude on</button>
+    <select id="attSel" class="btn" aria-label="Attitude hold mode">
+      <option value="pitch">Hold pitch</option><option value="surface">Hold surface prograde</option><option value="prograde">Hold orbital prograde</option><option value="off">Hold off</option>
+    </select>
+    <button class="btn hidden" id="takeBtn">Take manual control</button>
     <div class="warp" id="warp" role="group" aria-label="Time warp"></div>
+    <button class="btn" id="mapBtn">Map</button>
     <button class="btn" id="endBtn">End flight</button>
-    <span class="keys"><kbd>Space</kbd> ignite <kbd>W</kbd><kbd>S</kbd> throttle <kbd>A</kbd><kbd>D</kbd> pitch <kbd>T</kbd> hold <kbd>,</kbd><kbd>.</kbd> warp <kbd>X</kbd> cut <kbd>Esc</kbd> end</span>
+    <span class="keys"><kbd>Space</kbd> ignite <kbd>G</kbd> stage <kbd>W</kbd><kbd>S</kbd> throttle <kbd>A</kbd><kbd>D</kbd> pitch <kbd>M</kbd> map <kbd>,</kbd><kbd>.</kbd> warp <kbd>Esc</kbd> end</span>
   </div>
 </div>
 
@@ -271,6 +399,7 @@ kbd{font-family:var(--font);font-size:12px;border:1px solid rgba(255,255,255,.35
       <div class="chips" id="chips"></div>
       <div class="chart-wrap"><canvas id="rcv" aria-label="Telemetry chart"></canvas></div>
       <div class="rep-actions">
+        <button class="btn" id="progBtnRep">Edit program</button>
         <button class="btn" id="againBtn">Fly again</button>
         <button class="btn primary" id="backBtn">Back to builder</button>
       </div>
@@ -279,7 +408,16 @@ kbd{font-family:var(--font);font-size:12px;border:1px solid rgba(255,255,255,.35
 </div>
 
 <script>
+/*__ACORN__*/
+</script>
+<script>
 /*__CORE__*/
+</script>
+<script>
+/*__FC__*/
+</script>
+<script>
+/*__PROGRAMS__*/
 </script>
 <script>
 /*__UI__*/

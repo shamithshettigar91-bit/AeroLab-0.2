@@ -532,7 +532,8 @@ class Flight {
     if (!this.mach1 && d.mach >= 1) { this.mach1 = true; this.log('Supersonic'); }
     this.evalMission(d);
     if (!this.clamped && this.apogeeT === null && this.liftoffT !== null && this.t - this.liftoffT > 2 && d.vr < 0 && this.throttle === 0) {
-      this.apogeeT = this.t; this.apogee = this.max.alt; this.log(`Apogee: ${(this.max.alt / 1000).toFixed(1)} km`, this.reached ? 'good' : (this.canPropel() ? 'info' : 'bad'));
+      this.apogeeT = this.t; this.apogee = this.max.alt;
+      if (d.peri < 100000) this.log(`Apogee: ${(this.max.alt / 1000).toFixed(1)} km`, this.reached ? 'good' : (this.canPropel() ? 'info' : 'bad')); // not logged once in a real orbit
     }
     if (!this.ballistic && this.apogeeT !== null && d.vr < 0 && !this.canPropel()) this.ballistic = true;
     // failure detection (until the vehicle is coasting with nothing left to fire)
