@@ -1,0 +1,541 @@
+{
+  "schema": "aerolab.experiment/1",
+  "experimentId": "EXP-BASELINE-AeroModel-0.2",
+  "name": "AeroModel 0.2 balance baseline",
+  "kind": "Regression baseline",
+  "notes": "The tested learning path from PROJECT_REPORT section 7. Reproduce after any physics change.",
+  "createdAt": "2026-09-28T12:30:18+00:00",
+  "model": {
+    "physics": "AeroModel 0.2",
+    "atmosphere": "US76-lite 1.0",
+    "gravity": "PointMass 1.0",
+    "integrator": "RK4 at 100 Hz",
+    "staging": "Impulse 1.0",
+    "flightComputer": "FlightComputer 1.0 at 20 Hz"
+  },
+  "code": {
+    "coreSha256": "e3dde3b4651b3cd52b8d85d2806a1e06ba41626751ecff888c16b2cfc26a1d08",
+    "runnerSha256": "8257d272190bce0b701d3e3469bb34dcfddbf16a3575efe5ee5f5fc3602616bf",
+    "flightComputerSha256": "158adad2066b888ffc2030230bf1c19cc8249e985c13f3db9ab8323ea6091a47",
+    "gitCommit": "41cb208325a5990691985236eb44885178161497",
+    "gitTag": "v0.1.1-6-g41cb208",
+    "gitDirty": false
+  },
+  "runtime": {
+    "node": "v22.22.2",
+    "python": "3.12.3",
+    "platform": "Linux-6.18.44-fc-v37-x86_64-with-glibc2.39"
+  },
+  "runs": [
+    {
+      "runId": "R001",
+      "label": "Starter, no fins",
+      "request": {
+        "design": {
+          "stack": [
+            "nose_ogive",
+            "payload_sci",
+            "avionics",
+            "tank_m",
+            "eng_sparrow"
+          ],
+          "fins": null
+        },
+        "stopAtApogee": true,
+        "telemetry": true
+      },
+      "requestSha256": "36a2ce84e74e5fd96756e491c3d8141f56b687e4646b2578028dd233d9b225e2",
+      "outcome": "Failed: breakup",
+      "apogee_m": 34868.148082480766,
+      "maxQ_Pa": 68566.52167663179,
+      "maxG": 8.567098745612354,
+      "resultSha256": "0b8fcfe53f47a4c5e7d4c75d904d7cfaeb0329acbcee3634cf736a84627e2fa2"
+    },
+    {
+      "runId": "R002",
+      "label": "Starter, small fins",
+      "request": {
+        "design": {
+          "stack": [
+            "nose_ogive",
+            "payload_sci",
+            "avionics",
+            "tank_m",
+            "eng_sparrow"
+          ],
+          "fins": "fins_s"
+        },
+        "stopAtApogee": true,
+        "telemetry": true
+      },
+      "requestSha256": "1fdc2d6d5614e69ee93641467db23e935599b67a776719ed42ac943dc845d737",
+      "outcome": "Success",
+      "apogee_m": 134526.39632236026,
+      "maxQ_Pa": 62974.80495251083,
+      "maxG": 7.923195271558439,
+      "resultSha256": "99c7b51f959290a143105478b43465e377488d89a088d6b7e46f618153fe9bc3"
+    },
+    {
+      "runId": "R003",
+      "label": "Starter, large fins",
+      "request": {
+        "design": {
+          "stack": [
+            "nose_ogive",
+            "payload_sci",
+            "avionics",
+            "tank_m",
+            "eng_sparrow"
+          ],
+          "fins": "fins_l"
+        },
+        "stopAtApogee": true,
+        "telemetry": true
+      },
+      "requestSha256": "2b8a09bfe232e5a9cf13e41d4004cbba63ca03b7a789594e924c9cb52a5eeed3",
+      "outcome": "Success",
+      "apogee_m": 111531.59783975407,
+      "maxQ_Pa": 58089.59716746792,
+      "maxG": 7.326434990169414,
+      "resultSha256": "037d66e34e8344f6997992d8de17d249144f33980f0844c7463643bcc1fd5250"
+    },
+    {
+      "runId": "R004",
+      "label": "Tank S, small fins",
+      "request": {
+        "design": {
+          "stack": [
+            "nose_ogive",
+            "payload_sci",
+            "avionics",
+            "tank_s",
+            "eng_sparrow"
+          ],
+          "fins": "fins_s"
+        },
+        "stopAtApogee": true,
+        "telemetry": true
+      },
+      "requestSha256": "388192b30708648a473fa97b8bd72171c77e75bb79d07d53b071f95d7c107e84",
+      "outcome": "Fell short",
+      "apogee_m": 20425.25549173914,
+      "maxQ_Pa": 97505.19947000712,
+      "maxG": 7.603199989948395,
+      "resultSha256": "a043a7c79a64fc9563ce1cb5a98fa70c48b1861281b13c15ed8fbc68c5cdec08"
+    },
+    {
+      "runId": "R005",
+      "label": "Heavy payload, tank M",
+      "request": {
+        "design": {
+          "stack": [
+            "nose_ogive",
+            "payload_heavy",
+            "avionics",
+            "tank_m",
+            "eng_sparrow"
+          ],
+          "fins": "fins_s"
+        },
+        "stopAtApogee": true,
+        "telemetry": true
+      },
+      "requestSha256": "b5fa260bdec5b18f8ac5d649cb70c17f51b3d24cad93f11d591e096f31060d1e",
+      "outcome": "Fell short",
+      "apogee_m": 85319.88809585012,
+      "maxQ_Pa": 56132.21768771988,
+      "maxG": 5.8083480659209785,
+      "resultSha256": "14d28ff0a62855914ebd3d9e8efcb903621e5748482b3e5bd7998c3c098868fe"
+    },
+    {
+      "runId": "R006",
+      "label": "Heavy payload, tank L",
+      "request": {
+        "design": {
+          "stack": [
+            "nose_ogive",
+            "payload_heavy",
+            "avionics",
+            "tank_l",
+            "eng_sparrow"
+          ],
+          "fins": "fins_s"
+        },
+        "stopAtApogee": true,
+        "telemetry": true
+      },
+      "requestSha256": "6ba00a4dc695750ba88f5fae911110635f19291eb9c3028da7f594b4ec9da54d",
+      "outcome": "Success",
+      "apogee_m": 168446.42181988154,
+      "maxQ_Pa": 39528.102382460325,
+      "maxG": 5.766277729811895,
+      "resultSha256": "32d58a4cd7fab01c636a2beb0d35d10c9303e5ef3ba7e903d686fd7de9b4a5b2"
+    },
+    {
+      "runId": "R007",
+      "label": "Heron, full throttle",
+      "request": {
+        "design": {
+          "stack": [
+            "nose_ogive",
+            "payload_sci",
+            "avionics",
+            "tank_l",
+            "eng_heron"
+          ],
+          "fins": "fins_s"
+        },
+        "stopAtApogee": true,
+        "telemetry": true
+      },
+      "requestSha256": "b2f274ec27e6be34320a7eb39450c93aba464fe76817259c92c4084c7028375c",
+      "outcome": "Failed: overload",
+      "apogee_m": 3954.2137291599065,
+      "maxQ_Pa": 120061.3100343052,
+      "maxG": 5.1916168238905165,
+      "resultSha256": "880ef9c6e073e84f70bb46ca02d769df0e0364cc4d498b958babce93f95770d3"
+    },
+    {
+      "runId": "R008",
+      "label": "Heron, 45% from 3 to 20 km",
+      "request": {
+        "design": {
+          "stack": [
+            "nose_ogive",
+            "payload_sci",
+            "avionics",
+            "tank_l",
+            "eng_heron"
+          ],
+          "fins": "fins_s"
+        },
+        "stopAtApogee": true,
+        "telemetry": true,
+        "throttlePlan": [
+          {
+            "from": 3000,
+            "to": 20000,
+            "throttle": 0.45
+          }
+        ]
+      },
+      "requestSha256": "1e93f42dac36ef6684e79d841b8ee899141d89356412e51a1286d7fd832fc5ad",
+      "outcome": "Success",
+      "apogee_m": 214369.1885738792,
+      "maxQ_Pa": 103337.08924617745,
+      "maxG": 14.976943686466155,
+      "resultSha256": "4aa451bb9f7fea4693f19de3a85688a2723d4e5324a221311adecb551ee7d1a2"
+    },
+    {
+      "runId": "R009",
+      "label": "Solid, no fins",
+      "request": {
+        "design": {
+          "stack": [
+            "nose_ogive",
+            "payload_sci",
+            "srm_needle"
+          ],
+          "fins": null
+        },
+        "stopAtApogee": true,
+        "telemetry": true
+      },
+      "requestSha256": "39e097afa990ffb23052631774fff7c0e83865b50b5e812351b7b410d016dfe5",
+      "outcome": "Failed: tumble",
+      "apogee_m": 128.39507716335356,
+      "maxQ_Pa": 2747.4671933584614,
+      "maxG": 2.924776346475724,
+      "resultSha256": "d94eb12d820e589c228d3497f56347207f11c8e53a38d59b3b024c69f69d62f9"
+    },
+    {
+      "runId": "R010",
+      "label": "Solid, small fins",
+      "request": {
+        "design": {
+          "stack": [
+            "nose_ogive",
+            "payload_sci",
+            "srm_needle"
+          ],
+          "fins": "fins_s"
+        },
+        "stopAtApogee": true,
+        "telemetry": true
+      },
+      "requestSha256": "5f5d1c4ff7f7ed7217524cae6c7e8ab180304e9ef902ff2a6c013ece9566c961",
+      "outcome": "Fell short",
+      "apogee_m": 67464.58506223094,
+      "maxQ_Pa": 106361.8578886378,
+      "maxG": 10.256232173566053,
+      "resultSha256": "0d4e790114d3c6d8b93cfd9804124ee8c5037cd28f7287fdb6da21fd7d2b38b6"
+    },
+    {
+      "runId": "R011",
+      "label": "Solid, large fins",
+      "request": {
+        "design": {
+          "stack": [
+            "nose_ogive",
+            "payload_sci",
+            "srm_needle"
+          ],
+          "fins": "fins_l"
+        },
+        "stopAtApogee": true,
+        "telemetry": true
+      },
+      "requestSha256": "7e9b4b8c94aa94ea9e50d821222540417b75c4f017d3a008609497884ee853e6",
+      "outcome": "Success",
+      "apogee_m": 120814.02849501278,
+      "maxQ_Pa": 86247.50053074762,
+      "maxG": 10.889030773129825,
+      "resultSha256": "fdddad7bd4608840863c6748143be6f85cc42ee2b8a774187bee55045f6841d1"
+    },
+    {
+      "runId": "R012",
+      "label": "Twin, staging program (M003)",
+      "request": {
+        "design": {
+          "stack": [
+            "nose_ogive",
+            "payload_sci",
+            "avionics",
+            "tank_m",
+            "eng_sparrow",
+            "decoupler",
+            "tank_l",
+            "tank_l",
+            "eng_heron"
+          ],
+          "fins": "fins_s"
+        },
+        "mission": "M003",
+        "program": "// Two-stage staging\n// Rule 1: never separate while the lower stage is still firing,\n//         or it rams the upper stage. Wait for burnout first.\n// Rule 2: light the upper stage quickly. It has no fins, so in the\n//         air it needs its engine's gimbal to stay pointed straight.\n\nfunction* flight(ship) {\n  ship.throttle(1);\n  ship.pitch(90);\n  ship.ignite();\n\n  // --- stage 1 ---\n  yield ship.until(() => ship.propellant <= 0);\n  ship.log('Stage 1 burnout at', (ship.altitude / 1000).toFixed(1), 'km');\n  yield ship.wait(1);            // let thrust tail off\n  ship.stage();                  // separate at the decoupler\n\n  // --- stage 2 ---\n  yield ship.wait(0.5);          // clear the spent stage\n  ship.ignite();\n  yield ship.until(() => ship.propellant <= 0);\n  ship.log('Stage 2 burnout. Apoapsis will be', (ship.apoapsis / 1000).toFixed(0), 'km');\n}\n",
+        "seed": 1,
+        "telemetry": true
+      },
+      "requestSha256": "fdf76f50f5a9d91eaa93fedfb5b7d8dacc60c0ed35bf06f17469cdd0da732c46",
+      "outcome": "Success",
+      "apogee_m": 505370.76621128246,
+      "maxQ_Pa": 55530.54189755646,
+      "maxG": 9.06134451153879,
+      "resultSha256": "1ff404b3d0a4a42bfef9abc90abba3b91e2a8701bae75bc18109656af90ea305"
+    },
+    {
+      "runId": "R013",
+      "label": "Twin, stage 2 never lit (M003)",
+      "request": {
+        "design": {
+          "stack": [
+            "nose_ogive",
+            "payload_sci",
+            "avionics",
+            "tank_m",
+            "eng_sparrow",
+            "decoupler",
+            "tank_l",
+            "tank_l",
+            "eng_heron"
+          ],
+          "fins": "fins_s"
+        },
+        "mission": "M003",
+        "program": "// Two-stage staging\n// Rule 1: never separate while the lower stage is still firing,\n//         or it rams the upper stage. Wait for burnout first.\n// Rule 2: light the upper stage quickly. It has no fins, so in the\n//         air it needs its engine's gimbal to stay pointed straight.\n\nfunction* flight(ship) {\n  ship.throttle(1);\n  ship.pitch(90);\n  ship.ignite();\n\n  // --- stage 1 ---\n  yield ship.until(() => ship.propellant <= 0);\n  ship.log('Stage 1 burnout at', (ship.altitude / 1000).toFixed(1), 'km');\n  yield ship.wait(1);            // let thrust tail off\n  ship.stage();                  // separate at the decoupler\n\n  // --- stage 2 ---\n\n  yield ship.until(() => ship.propellant <= 0);\n  ship.log('Stage 2 burnout. Apoapsis will be', (ship.apoapsis / 1000).toFixed(0), 'km');\n}\n",
+        "seed": 1,
+        "telemetry": true
+      },
+      "requestSha256": "20100c5f2c167a74d183ada022be75af88ffb72309db801870889364469b2e23",
+      "outcome": "Failed: tumble",
+      "apogee_m": 37396.068595699035,
+      "maxQ_Pa": 55530.54189755646,
+      "maxG": 4.9722535381250825,
+      "resultSha256": "d60370607f94b1c59ad1a3f491ba88ab410c8310559b54ba7b53e7c34677e997"
+    },
+    {
+      "runId": "R014",
+      "label": "Twin, separated while firing (M003)",
+      "request": {
+        "design": {
+          "stack": [
+            "nose_ogive",
+            "payload_sci",
+            "avionics",
+            "tank_m",
+            "eng_sparrow",
+            "decoupler",
+            "tank_l",
+            "tank_l",
+            "eng_heron"
+          ],
+          "fins": "fins_s"
+        },
+        "mission": "M003",
+        "program": "// Two-stage staging\n// Rule 1: never separate while the lower stage is still firing,\n//         or it rams the upper stage. Wait for burnout first.\n// Rule 2: light the upper stage quickly. It has no fins, so in the\n//         air it needs its engine's gimbal to stay pointed straight.\n\nfunction* flight(ship) {\n  ship.throttle(1);\n  ship.pitch(90);\n  ship.ignite();\n\n  // --- stage 1 ---\n  yield ship.wait(20);\n  ship.log('Stage 1 burnout at', (ship.altitude / 1000).toFixed(1), 'km');\n  yield ship.wait(1);            // let thrust tail off\n  ship.stage();                  // separate at the decoupler\n\n  // --- stage 2 ---\n  yield ship.wait(0.5);          // clear the spent stage\n  ship.ignite();\n  yield ship.until(() => ship.propellant <= 0);\n  ship.log('Stage 2 burnout. Apoapsis will be', (ship.apoapsis / 1000).toFixed(0), 'km');\n}\n",
+        "seed": 1,
+        "telemetry": true
+      },
+      "requestSha256": "24254d3e758610fd2b60a44cffb8be5f46fc033f80c092e3b2e0b9f355e62a9f",
+      "outcome": "Failed: recontact",
+      "apogee_m": 2379.9478111285716,
+      "maxQ_Pa": 28277.412270067623,
+      "maxG": 2.3427962104773496,
+      "resultSha256": "d8c3964081e080d12e26ffb1005d7a2abda54cc2056ea4bb64d9f2201933c715"
+    },
+    {
+      "runId": "R015",
+      "label": "Orbiter, coast and circularise (M004)",
+      "request": {
+        "design": {
+          "stack": [
+            "nose_ogive",
+            "payload_sci",
+            "avionics",
+            "wheels",
+            "tank_c5",
+            "eng_kestrel",
+            "decoupler",
+            "tank_c5",
+            "tank_c5",
+            "tank_c3",
+            "eng_condor"
+          ],
+          "fins": "fins_s"
+        },
+        "mission": "M004",
+        "program": "// Orbit: gravity turn, coast, circularise\n// 1. Climb straight up, then tilt east gradually (a \"gravity turn\").\n// 2. Stage 1 burns out; separate and light the vacuum upper stage.\n// 3. Burn until the apoapsis (highest point) reaches the target.\n// 4. Coast up to apoapsis, pointed prograde.\n// 5. Burn prograde at apoapsis until the periapsis comes up to meet it.\n\nconst TARGET = 200000;      // m, target orbit altitude\nconst TURN_START = 800;     // m, begin tilting\nconst TURN_END = 50000;     // m, end of the pitch programme\nconst END_PITCH = 30;       // degrees above the horizon at TURN_END\n\nfunction* flight(ship) {\n  ship.throttle(1);\n  ship.pitch(90);\n  ship.ignite();\n  yield ship.until(() => ship.altitude > TURN_START);\n\n  // --- stage 1: gravity turn ---\n  while (ship.propellant > 0) {\n    const k = Math.min(1, (ship.altitude - TURN_START) / (TURN_END - TURN_START));\n    ship.pitch(90 - (90 - END_PITCH) * Math.sqrt(k));\n    yield;\n  }\n  yield ship.wait(1);\n  ship.stage();\n  // In the air, point along the airflow (\"surface prograde\"). Orbital prograde\n  // differs by Earth's rotation, and a finless stage flips if it points off the airflow.\n  ship.surfacePrograde();\n  yield ship.wait(0.5);\n  ship.ignite();\n\n  // --- stage 2: raise the apoapsis ---\n  while (ship.apoapsis < TARGET && ship.propellant > 0) {\n    if (ship.dynamicPressure > 300) ship.surfacePrograde();\n    else ship.pitch(Math.max(5, ship.flightPathAngle - 6));   // fly a little flatter than the velocity\n    yield;\n  }\n  ship.shutdown();\n  ship.log('Apoapsis', (ship.apoapsis / 1000).toFixed(0), 'km. Coasting.');\n\n  // --- plan the circularisation burn (vis-viva equation) ---\n  ship.prograde();                              // the reaction wheels turn us while coasting\n  const rA = ship.earthRadius + ship.apoapsis;\n  const rP = ship.earthRadius + ship.periapsis;\n  const vAtApo = Math.sqrt(ship.mu * (2 / rA - 2 / (rA + rP)));   // speed we will have at apoapsis\n  const vCircular = Math.sqrt(ship.mu / rA);                        // speed a circular orbit needs\n  const dv = vCircular - vAtApo;\n  const ve = ship.isp * 9.80665;                                    // exhaust velocity\n  const burnTime = ship.mass * (1 - Math.exp(-dv / ve)) / (ship.maxThrust / ve);\n  ship.log('Circularisation needs', dv.toFixed(0), 'm/s, a', burnTime.toFixed(0), 's burn');\n\n  // centre the burn on apoapsis (if we already passed it, burn straight away)\n  if (ship.verticalSpeed > 0) {\n    yield ship.until(() => ship.timeToApoapsis < burnTime / 2);\n  }\n  ship.ignite();\n  yield ship.until(() => ship.periapsis > TARGET - 15000 || ship.propellant <= 0);\n  ship.shutdown();\n  ship.log('Orbit', (ship.periapsis / 1000).toFixed(0), 'x', (ship.apoapsis / 1000).toFixed(0), 'km');\n}\n",
+        "seed": 1,
+        "telemetry": true
+      },
+      "requestSha256": "749395d442845479bfc44dd3be3c8b96d5ad6685de39d2ec70639f90fff85505",
+      "outcome": "Success",
+      "apogee_m": 200233.96945144515,
+      "maxQ_Pa": 45101.98633331165,
+      "maxG": 6.682677765331754,
+      "resultSha256": "21f5249dfccc59d49a7437eef1ab494a4c4b50879555bb25510a5952d479fa99"
+    },
+    {
+      "runId": "R016",
+      "label": "Orbiter, coast and circularise (M005)",
+      "request": {
+        "design": {
+          "stack": [
+            "nose_ogive",
+            "payload_sci",
+            "avionics",
+            "wheels",
+            "tank_c5",
+            "eng_kestrel",
+            "decoupler",
+            "tank_c5",
+            "tank_c5",
+            "tank_c3",
+            "eng_condor"
+          ],
+          "fins": "fins_s"
+        },
+        "mission": "M005",
+        "program": "// Orbit: gravity turn, coast, circularise\n// 1. Climb straight up, then tilt east gradually (a \"gravity turn\").\n// 2. Stage 1 burns out; separate and light the vacuum upper stage.\n// 3. Burn until the apoapsis (highest point) reaches the target.\n// 4. Coast up to apoapsis, pointed prograde.\n// 5. Burn prograde at apoapsis until the periapsis comes up to meet it.\n\nconst TARGET = 200000;      // m, target orbit altitude\nconst TURN_START = 800;     // m, begin tilting\nconst TURN_END = 50000;     // m, end of the pitch programme\nconst END_PITCH = 30;       // degrees above the horizon at TURN_END\n\nfunction* flight(ship) {\n  ship.throttle(1);\n  ship.pitch(90);\n  ship.ignite();\n  yield ship.until(() => ship.altitude > TURN_START);\n\n  // --- stage 1: gravity turn ---\n  while (ship.propellant > 0) {\n    const k = Math.min(1, (ship.altitude - TURN_START) / (TURN_END - TURN_START));\n    ship.pitch(90 - (90 - END_PITCH) * Math.sqrt(k));\n    yield;\n  }\n  yield ship.wait(1);\n  ship.stage();\n  // In the air, point along the airflow (\"surface prograde\"). Orbital prograde\n  // differs by Earth's rotation, and a finless stage flips if it points off the airflow.\n  ship.surfacePrograde();\n  yield ship.wait(0.5);\n  ship.ignite();\n\n  // --- stage 2: raise the apoapsis ---\n  while (ship.apoapsis < TARGET && ship.propellant > 0) {\n    if (ship.dynamicPressure > 300) ship.surfacePrograde();\n    else ship.pitch(Math.max(5, ship.flightPathAngle - 6));   // fly a little flatter than the velocity\n    yield;\n  }\n  ship.shutdown();\n  ship.log('Apoapsis', (ship.apoapsis / 1000).toFixed(0), 'km. Coasting.');\n\n  // --- plan the circularisation burn (vis-viva equation) ---\n  ship.prograde();                              // the reaction wheels turn us while coasting\n  const rA = ship.earthRadius + ship.apoapsis;\n  const rP = ship.earthRadius + ship.periapsis;\n  const vAtApo = Math.sqrt(ship.mu * (2 / rA - 2 / (rA + rP)));   // speed we will have at apoapsis\n  const vCircular = Math.sqrt(ship.mu / rA);                        // speed a circular orbit needs\n  const dv = vCircular - vAtApo;\n  const ve = ship.isp * 9.80665;                                    // exhaust velocity\n  const burnTime = ship.mass * (1 - Math.exp(-dv / ve)) / (ship.maxThrust / ve);\n  ship.log('Circularisation needs', dv.toFixed(0), 'm/s, a', burnTime.toFixed(0), 's burn');\n\n  // centre the burn on apoapsis (if we already passed it, burn straight away)\n  if (ship.verticalSpeed > 0) {\n    yield ship.until(() => ship.timeToApoapsis < burnTime / 2);\n  }\n  ship.ignite();\n  yield ship.until(() => ship.periapsis > TARGET - 15000 || ship.propellant <= 0);\n  ship.shutdown();\n  ship.log('Orbit', (ship.periapsis / 1000).toFixed(0), 'x', (ship.apoapsis / 1000).toFixed(0), 'km');\n}\n",
+        "seed": 1,
+        "telemetry": true
+      },
+      "requestSha256": "7478007b96c9b41c068e11d102c84af47e41ef8e6b526deb387e6bfb963632b2",
+      "outcome": "Success",
+      "apogee_m": 200233.96945144515,
+      "maxQ_Pa": 45101.98633331165,
+      "maxG": 6.682677765331754,
+      "resultSha256": "ff96e774cd68ae5e6dc1891afd19c4fb749245e9c7c25c909cb490588a0b7755"
+    },
+    {
+      "runId": "R017",
+      "label": "Orbiter, direct insertion (M005)",
+      "request": {
+        "design": {
+          "stack": [
+            "nose_ogive",
+            "payload_sci",
+            "avionics",
+            "wheels",
+            "tank_c5",
+            "eng_kestrel",
+            "decoupler",
+            "tank_c5",
+            "tank_c5",
+            "tank_c3",
+            "eng_condor"
+          ],
+          "fins": "fins_s"
+        },
+        "mission": "M005",
+        "program": "// Orbit: direct insertion (advanced)\n// Instead of coasting, the upper stage keeps burning and steers so the\n// apoapsis stays about ETA seconds ahead. If it gets closer, pitch up;\n// if it runs away, pitch down. The burn ends when the periapsis is high enough.\n\nconst TARGET = 200000;   // m\nconst ETA = 75;          // s, keep the apoapsis this far ahead\nconst K_ETA = 0.5;       // degrees of pitch per second of ETA error\nconst K_APO = 0.5;       // degrees of pitch per km of apoapsis error\n\nfunction* flight(ship) {\n  ship.throttle(1);\n  ship.pitch(90);\n  ship.ignite();\n  yield ship.until(() => ship.altitude > 800);\n\n  while (ship.propellant > 0) {\n    const k = Math.min(1, (ship.altitude - 800) / (50000 - 800));\n    ship.pitch(90 - 70 * Math.sqrt(k));\n    yield;\n  }\n  yield ship.wait(1);\n  ship.stage();\n  ship.surfacePrograde();\n  yield ship.wait(0.5);\n  ship.ignite();\n\n  while (ship.periapsis < TARGET - 15000 && ship.propellant > 0) {\n    const eta = ship.verticalSpeed > 0 ? ship.timeToApoapsis : -10;\n    const p = 5 + K_ETA * (ETA - eta) + K_APO * (TARGET - ship.apoapsis) / 1000;\n    if (ship.dynamicPressure > 300) ship.surfacePrograde();\n    else ship.pitch(Math.max(-20, Math.min(45, p)));\n    yield;\n  }\n  ship.shutdown();\n  ship.log('Orbit', (ship.periapsis / 1000).toFixed(0), 'x', (ship.apoapsis / 1000).toFixed(0), 'km');\n}\n",
+        "seed": 1,
+        "telemetry": true
+      },
+      "requestSha256": "a157b6ea4ba20e9612cbc3079dc74c01f8ad6f395c9e848bdf191d6944b8ede8",
+      "outcome": "Success",
+      "apogee_m": 196504.0047533475,
+      "maxQ_Pa": 46491.737466967286,
+      "maxG": 6.587613820965047,
+      "resultSha256": "ee1c233d644b5dee1da0db8fd92e58b5dafeb65c32cb2c8c35a31e1825c3d0d2"
+    },
+    {
+      "runId": "R018",
+      "label": "Orbiter, no circularisation (M004)",
+      "request": {
+        "design": {
+          "stack": [
+            "nose_ogive",
+            "payload_sci",
+            "avionics",
+            "wheels",
+            "tank_c5",
+            "eng_kestrel",
+            "decoupler",
+            "tank_c5",
+            "tank_c5",
+            "tank_c3",
+            "eng_condor"
+          ],
+          "fins": "fins_s"
+        },
+        "mission": "M004",
+        "program": "// Orbit: gravity turn, coast, circularise\n// 1. Climb straight up, then tilt east gradually (a \"gravity turn\").\n// 2. Stage 1 burns out; separate and light the vacuum upper stage.\n// 3. Burn until the apoapsis (highest point) reaches the target.\n// 4. Coast up to apoapsis, pointed prograde.\n// 5. Burn prograde at apoapsis until the periapsis comes up to meet it.\n\nconst TARGET = 200000;      // m, target orbit altitude\nconst TURN_START = 800;     // m, begin tilting\nconst TURN_END = 50000;     // m, end of the pitch programme\nconst END_PITCH = 30;       // degrees above the horizon at TURN_END\n\nfunction* flight(ship) {\n  ship.throttle(1);\n  ship.pitch(90);\n  ship.ignite();\n  yield ship.until(() => ship.altitude > TURN_START);\n\n  // --- stage 1: gravity turn ---\n  while (ship.propellant > 0) {\n    const k = Math.min(1, (ship.altitude - TURN_START) / (TURN_END - TURN_START));\n    ship.pitch(90 - (90 - END_PITCH) * Math.sqrt(k));\n    yield;\n  }\n  yield ship.wait(1);\n  ship.stage();\n  // In the air, point along the airflow (\"surface prograde\"). Orbital prograde\n  // differs by Earth's rotation, and a finless stage flips if it points off the airflow.\n  ship.surfacePrograde();\n  yield ship.wait(0.5);\n  ship.ignite();\n\n  // --- stage 2: raise the apoapsis ---\n  while (ship.apoapsis < TARGET && ship.propellant > 0) {\n    if (ship.dynamicPressure > 300) ship.surfacePrograde();\n    else ship.pitch(Math.max(5, ship.flightPathAngle - 6));   // fly a little flatter than the velocity\n    yield;\n  }\n  ship.shutdown();\n  ship.log('Apoapsis', (ship.apoapsis / 1000).toFixed(0), 'km. Coasting.');\n\n}\n",
+        "seed": 1,
+        "telemetry": true
+      },
+      "requestSha256": "13cbccd0609ccaed7182bc336a1c0180817b503576f9a3249c9d4874e6f82709",
+      "outcome": "Failed: tumble",
+      "apogee_m": 200009.45723690093,
+      "maxQ_Pa": 45101.98633331165,
+      "maxG": 5.077660891736723,
+      "resultSha256": "f5265c5df6ba8275ba5102b2444862fd7b668ec3c612e7137806b30fe5b97a87"
+    },
+    {
+      "runId": "R019",
+      "label": "Sounder, hello program (M002)",
+      "request": {
+        "design": {
+          "stack": [
+            "nose_ogive",
+            "payload_sci",
+            "avionics",
+            "tank_m",
+            "eng_sparrow"
+          ],
+          "fins": "fins_s"
+        },
+        "mission": "M002",
+        "program": "// Hello, rocket\n// Every flight program defines  function* flight(ship) { ... }\n// The simulation runs it 20 times per simulated second.\n// \"yield\" hands control back to the simulation until the next tick.\n\nfunction* flight(ship) {\n  ship.throttle(1);      // full throttle\n  ship.pitch(90);        // hold straight up\n  ship.ignite();         // light the engine\n\n  // wait until the rocket has left the pad\n  yield ship.until(() => ship.liftedOff);\n  ship.log('Lift-off!');\n\n  // report every 10 seconds while climbing\n  while (ship.verticalSpeed > 0) {\n    ship.log('Altitude', (ship.altitude / 1000).toFixed(1), 'km, speed', ship.speed.toFixed(0), 'm/s');\n    yield ship.wait(10);\n  }\n  ship.log('Apogee reached at', (ship.altitude / 1000).toFixed(1), 'km');\n}\n",
+        "seed": 1,
+        "telemetry": true
+      },
+      "requestSha256": "9042849b91243c67652d60cad91fbcb6b16f36e0ef602e8c3ac5df3f809aad92",
+      "outcome": "Success",
+      "apogee_m": 101602.36045265105,
+      "maxQ_Pa": 62974.80495251083,
+      "maxG": 7.923195271558439,
+      "resultSha256": "59e640853dd0ba894f1ad1d4480232e67bd6505511237315229e58cf5773f4f3"
+    }
+  ],
+  "manifestSha256": "327298481ef9f2482dbf4f898c76f20d85bd78f64d9469074c8e664c9f67537a"
+}
