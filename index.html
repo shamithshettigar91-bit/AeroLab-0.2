@@ -191,6 +191,8 @@ kbd{font-family:var(--font);font-size:12px;border:1px solid rgba(255,255,255,.35
 @media (prefers-reduced-motion: reduce){ *{scroll-behavior:auto!important} }
 
 /* V0.2 additions */
+.banner .btn:not(.primary){background:rgba(255,255,255,.1);color:#fff;border-color:rgba(255,255,255,.4)}
+.banner .btn:not(.primary):hover{background:rgba(255,255,255,.2)}
 .caution{display:inline-block;margin:0 0 8px;padding:4px 10px;border-radius:6px;background:#EE6A55;color:#fff;font-family:var(--cond);font-weight:600;font-size:15px;letter-spacing:.02em;animation:blink 1s steps(2,start) infinite}
 .caution.hidden{display:none}
 @keyframes blink{to{visibility:hidden}}
@@ -6767,9 +6769,13 @@ const G0 = 9.80665, MU = 3.986004418e14, RE = 6371000, WE = -7.2921159e-5;
 const P0 = 101325, RAIR = 287.053, DIAM = 0.6, AREF = Math.PI * (DIAM / 2) ** 2;
 const DEG = Math.PI / 180;
 const MODEL = {
-  physics: 'AeroModel 0.2', atmosphere: 'US76-lite 1.0', gravity: 'PointMass 1.0', integrator: 'RK4 at 100 Hz',
+  physics: 'AeroModel 0.3', coast: 'Kepler on rails above 140 km', atmosphere: 'US76-lite 1.0', gravity: 'PointMass 1.0', integrator: 'RK4 at 100 Hz',
   staging: 'Impulse 1.0', flightComputer: 'FlightComputer 1.0 at 20 Hz',
 };
+// Physics versions this core can still run exactly, for reproducing old experiments.
+// AeroModel 0.1 and 0.2 integrate every step with RK4 (no coasting on rails).
+const LEGACY_MODELS = ['AeroModel 0.1', 'AeroModel 0.2'];
+const RAILS_ALT = 140000; // m. Above this, drag is below 1e-5 m/s² for any AeroLab vehicle, so coasts can follow a Kepler orbit.
 const PROGRAM_TICK = 5; // simulation steps per flight-computer tick (100 Hz / 5 = 20 Hz)
 
 // ---------- Part definitions (data, not code) ----------
@@ -6829,6 +6835,8 @@ const MISSIONS = [
     objective: { type: 'orbit', peri: 150000 }, constraints: { minStages: 2 }, successMsg: 'Orbit achieved. Mission objective complete.', dvHint: 9000 },
   { id: 'M005', title: 'Circular orbit', brief: 'Reach a circular orbit: periapsis and apoapsis both between 180 and 220 km.',
     objective: { type: 'orbit', peri: 180000, apo: 220000 }, constraints: { minStages: 2 }, successMsg: 'Circular orbit achieved. Mission objective complete.', dvHint: 9200 },
+  { id: 'M007', title: 'Higher orbit', brief: 'Reach a circular 400 km orbit: periapsis and apoapsis both between 380 and 420 km. A Hohmann transfer from a low orbit is the efficient way.',
+    objective: { type: 'orbit', peri: 380000, apo: 420000 }, constraints: { minStages: 2 }, successMsg: 'Higher orbit reached. Mission objective complete.', dvHint: 9400 },
   { id: 'M006', title: 'Hands off', brief: 'Reach orbit (periapsis above 150 km) with the flight program alone. Any manual input fails the mission.',
     objective: { type: 'orbit', peri: 150000 }, constraints: { minStages: 2, programOnly: true }, successMsg: 'Autonomous orbit achieved. Mission objective complete.', dvHint: 9000 },
 ];
@@ -7029,6 +7037,28 @@ function orbitElements(x, y, vx, vy) {
   return { apo: a * (1 + e) - RE, peri: a * (1 - e) - RE, ecc: e, sma: a, period, timeToApo, timeToPeri, bound: true };
 }
 
+// Advance a bound two-body orbit by dt exactly, using f and g functions with the
+// eccentric-anomaly form of Kepler's equation (stable for circular orbits too).
+// Returns null for unbound paths, which stay with the numerical integrator.
+function keplerStep(x, y, vx, vy, dt) {
+  const r0 = Math.hypot(x, y), v2 = vx * vx + vy * vy, eps = v2 / 2 - MU / r0;
+  if (eps >= 0) return null;
+  const a = -MU / (2 * eps), n = Math.sqrt(MU / (a * a * a)), sa = Math.sqrt(a), smu = Math.sqrt(MU);
+  const s0 = (x * vx + y * vy) / smu, c = 1 - r0 / a, dM = n * dt;
+  let dE = dM;
+  for (let i = 0; i < 30; i++) {
+    const F = dE - c * Math.sin(dE) + s0 / sa * (1 - Math.cos(dE)) - dM;
+    const dF = 1 - c * Math.cos(dE) + s0 / sa * Math.sin(dE);
+    const step = F / dF; dE -= step;
+    if (Math.abs(step) < 1e-13) break;
+  }
+  const cE = Math.cos(dE), sE = Math.sin(dE);
+  const r = a + (r0 - a) * cE + s0 * sa * sE;
+  const f = 1 - a / r0 * (1 - cE), g = a * s0 / smu * (1 - cE) + r0 * Math.sqrt(a / MU) * sE;
+  const fd = -Math.sqrt(MU * a) / (r * r0) * sE, gd = 1 - a / r * (1 - cE);
+  return [f * x + g * vx, f * y + g * vy, fd * x + gd * vx, fd * y + gd * vy];
+}
+
 // ---------- Drag coefficient ----------
 function machFactor(M) {
   if (M < 0.8) return 1;
@@ -7062,7 +7092,7 @@ class Debris {
 }
 
 // ---------- Flight simulation ----------
-// opts: { program: source string, mission: id, seed: integer }
+// opts: { program: source string, mission: id, seed: integer, model: physics version (default: current) }
 class Flight {
   constructor(design, opts = {}) {
     this.design = { stack: [...design.stack], fins: design.fins || null };
@@ -7070,6 +7100,7 @@ class Flight {
     this.veh = buildVehicle({ stack: this.stack, fins: this.fins });
     const v = this.veh;
     this.mission = missionById(opts.mission || 'M002'); this.seed = opts.seed ?? 1;
+    this.physics = opts.model || MODEL.physics; this.railsAllowed = !LEGACY_MODELS.includes(this.physics); this.onRails = false;
     this.t = 0; this.prop = v.propCap; this.stepCount = 0;
     this.x = 0; this.y = RE; this.vx = -WE * RE; this.vy = 0; this.th = Math.PI / 2; this.om = WE;
     this.clamped = true; this.engine = 'off'; this.ignT = 0; this.throttleCmd = 1; this.throttle = 0;
@@ -7232,9 +7263,52 @@ class Flight {
     const rate = 20 * DEG * dt; this.gimbal += Math.max(-rate, Math.min(rate, cmd - this.gimbal));
   }
 
-  step(dt) {
+  // Coasting on rails (AeroModel 0.3). Decided from the state alone, never from time warp,
+  // so a flight is identical at 1× and 10,000×.
+  railsOK() {
+    if (!this.railsAllowed || this.done || this.clamped || this.throttle !== 0 || this.engine === 'ignition' || this.pitchInput !== 0) return false;
+    if (this.stepCount % PROGRAM_TICK !== 0 || this.d.alt < RAILS_ALT + 2000) return false;
+    const r = Math.hypot(this.x, this.y), eps = (this.vx * this.vx + this.vy * this.vy) / 2 - MU / r;
+    return eps < 0;
+  }
+  // How many base steps one rails chunk may cover: one program tick while the program is
+  // steering or checking a condition, up to one second otherwise.
+  railsChunk(dt) {
+    let k = 100;
+    if (this.debris.some(db => db.alive)) k = PROGRAM_TICK;
+    const P = this.program;
+    if (P && (P.status === 'ready' || P.status === 'running')) {
+      if (!P.wait || P.wait.kind !== 'time') k = PROGRAM_TICK;
+      else k = Math.min(k, Math.max(PROGRAM_TICK, Math.ceil((P.wait.until - this.t) / dt / PROGRAM_TICK - 1e-9) * PROGRAM_TICK));
+    }
+    return k;
+  }
+  // Advance by one base step, or by a whole rails chunk when coasting. Returns steps taken.
+  advance(dt) {
+    if (!this.railsOK()) { this.onRails = false; this.step(dt); return 1; }
+    const k = this.railsChunk(dt);
+    if (this.program && this.stepCount % PROGRAM_TICK === 0) { this.program.tick(); if (this.done || !this.railsOK()) { this.onRails = false; this.step(dt, true); return 1; } }
+    let T = 0; for (let i = 0; i < k; i++) T += dt;
+    const N = keplerStep(this.x, this.y, this.vx, this.vy, T);
+    if (!N || Math.hypot(N[0], N[1]) - RE < RAILS_ALT) { this.onRails = false; this.step(dt, true); return 1; }
+    this.onRails = true;
+    for (let i = 0; i < k; i++) { this.t += dt; for (const db of this.debris) db.step(dt); }
+    this.stepCount += k;
+    [this.x, this.y, this.vx, this.vy] = N;
+    // attitude: held by the reaction wheels if attitude hold is on, otherwise free rotation
+    if (this.sas && this.veh.wheelTorque > 0) { this.th = this.targetAngle(); this.om = WE; this.iErr = 0; }
+    else this.th += this.om * T;
+    const r = Math.hypot(this.x, this.y), atm = atmosphere(r - RE), m = this.veh.dryMass + this.prop;
+    const ax = this.vx + WE * this.y, ay = this.vy - WE * this.x, va = Math.hypot(ax, ay);
+    this._aux = { tauAero: 0, T: 0, D: 0, q: 0.5 * atm.rho * va * va, mach: va / atm.a, sina: 0, m, atm, alt: r - RE, va, gm: MU / (r * r), fxNG: 0, fyNG: 0 };
+    this.tauAero = 0; this.gimbal = 0; this.wheelTau = 0;
+    this.after(T, null, true);
+    return k;
+  }
+
+  step(dt, ticked = false) {
     if (this.done) return;
-    if (this.program && this.stepCount % PROGRAM_TICK === 0) this.program.tick();
+    if (!ticked && this.program && this.stepCount % PROGRAM_TICK === 0) this.program.tick();
     this.stepCount++;
     if (this.done) return;
     const v = this.veh;
@@ -7273,7 +7347,7 @@ class Flight {
     this.after(dt, k1);
   }
 
-  after(dt, k1) {
+  after(dt, k1, rails = false) {
     const v = this.veh;
     if (this.prop <= 0 && this.throttle > 0 && !this.burnout) {
       this.prop = 0; this.burnout = true; this.burnoutT = this.t; this.engine = 'burnout';
@@ -7312,7 +7386,7 @@ class Flight {
     if (!this.clamped && d.alt <= 0 && this.liftoffT !== null && this.t - this.liftoffT > 1) {
       this.log(`Impact ${(d.downrange / 1000).toFixed(1)} km downrange`, 'bad'); this.end();
     }
-    if (this.t >= this.teleNext) { this.teleNext += 0.1; this.record(d); }
+    if (this.t >= this.teleNext) { if (rails) this.teleNext = this.t + 5; else this.teleNext += 0.1; this.record(d); } // 0.2 Hz while on rails
   }
 
   evalMission(d) {
@@ -7509,7 +7583,7 @@ function flightReport(f, an) {
   return R;
 }
 
-if (typeof module !== 'undefined') module.exports = { PARTS, MISSIONS, missionById, analyze, buildVehicle, massProps, stageSegments, Flight, flightReport,
+if (typeof module !== 'undefined') module.exports = { PARTS, MISSIONS, missionById, analyze, buildVehicle, massProps, stageSegments, Flight, flightReport, keplerStep, LEGACY_MODELS, RAILS_ALT,
   atmosphere, orbitElements, MODEL, G0, MU, RE, DEG, PROGRAM_TICK };
 
 </script>
@@ -8000,6 +8074,67 @@ function* flight(ship) {
     else ship.pitch(Math.max(-20, Math.min(45, p)));
     yield;
   }
+  ship.shutdown();
+  ship.log('Orbit', (ship.periapsis / 1000).toFixed(0), 'x', (ship.apoapsis / 1000).toFixed(0), 'km');
+}
+`,
+  },
+  {
+    id: 'hohmann', title: 'Higher orbit: Hohmann transfer', design: 'orbiter', mission: 'M007',
+    summary: 'Reach a low orbit, then raise it to 400 km with two short burns half an orbit apart. Uses all three Kestrel ignitions.',
+    code: `// Higher orbit: Hohmann transfer
+// The cheapest way between two circular orbits is two burns:
+//   burn 1, prograde: raises the far side of the orbit (the apoapsis) to the new height
+//   coast half an orbit, about 46 minutes, to that new apoapsis
+//   burn 2, prograde: raises the near side (the periapsis) to match, making it circular
+// Use time warp for the coast. Above 140 km the simulation coasts on an exact Kepler orbit.
+
+const LOW = 200000;      // m, first orbit
+const HIGH = 400000;     // m, target orbit
+
+function* flight(ship) {
+  // --- ascent: direct insertion into a low orbit (one Kestrel ignition) ---
+  ship.throttle(1); ship.pitch(90); ship.ignite();
+  yield ship.until(() => ship.altitude > 800);
+  while (ship.propellant > 0) {
+    const k = Math.min(1, (ship.altitude - 800) / (50000 - 800));
+    ship.pitch(90 - 70 * Math.sqrt(k));
+    yield;
+  }
+  yield ship.wait(1);
+  ship.stage();
+  ship.surfacePrograde();
+  yield ship.wait(0.5);
+  ship.ignite();
+  while (ship.periapsis < LOW - 15000 && ship.propellant > 0) {
+    const eta = ship.verticalSpeed > 0 ? ship.timeToApoapsis : -10;
+    const p = 5 + 0.5 * (75 - eta) + 0.5 * (LOW - ship.apoapsis) / 1000;
+    if (ship.dynamicPressure > 300) ship.surfacePrograde();
+    else ship.pitch(Math.max(-20, Math.min(45, p)));
+    yield;
+  }
+  ship.shutdown();
+  ship.log('Low orbit', (ship.periapsis / 1000).toFixed(0), 'x', (ship.apoapsis / 1000).toFixed(0), 'km');
+
+  // --- plan the transfer (vis-viva) ---
+  ship.prograde();
+  yield ship.wait(10);                               // let the reaction wheels line up
+  const r1 = ship.radius, r2 = ship.earthRadius + HIGH, aT = (r1 + r2) / 2;
+  const dv1 = Math.sqrt(ship.mu * (2 / r1 - 1 / aT)) - ship.orbitalSpeed;
+  const dv2 = Math.sqrt(ship.mu / r2) - Math.sqrt(ship.mu * (2 / r2 - 1 / aT));
+  ship.log('Transfer: burn 1', dv1.toFixed(0), 'm/s, burn 2', dv2.toFixed(0), 'm/s, coast', (Math.PI * Math.sqrt(aT ** 3 / ship.mu) / 60).toFixed(0), 'min');
+
+  // --- burn 1: raise the apoapsis ---
+  ship.ignite();
+  yield ship.until(() => ship.apoapsis >= HIGH || ship.propellant <= 0);
+  ship.shutdown();
+
+  // --- coast to the new apoapsis, then burn 2 centred on it ---
+  const ve = ship.isp * 9.80665;
+  const burnTime = ship.mass * (1 - Math.exp(-dv2 / ve)) / (ship.maxThrust / ve);
+  yield ship.until(() => ship.timeToApoapsis < burnTime / 2 && ship.verticalSpeed > 0);
+  ship.ignite();
+  yield ship.until(() => ship.periapsis >= HIGH - 15000 || ship.propellant <= 0);
   ship.shutdown();
   ship.log('Orbit', (ship.periapsis / 1000).toFixed(0), 'x', (ship.apoapsis / 1000).toFixed(0), 'km');
 }
@@ -8637,7 +8772,7 @@ function testFlight() {
   const res = checkUI(); if (!res || !res.ok) return;
   const a = analyze(design, missionId);
   if (!a.valid) { $('#output').innerHTML = `<div class="bad">The rocket has ${a.issues.filter(i => i.level === 'error').length} design problem(s). Fix them on the Build tab first.</div>`; return; }
-  const f = new Flight(design, { program: codeEl.value, mission: missionId }), orbit = f.mission.objective.type === 'orbit', maxT = orbit ? 3600 : 1500;
+  const f = new Flight(design, { program: codeEl.value, mission: missionId }), orbit = f.mission.objective.type === 'orbit', maxT = missionId === 'M007' ? 12000 : orbit ? 3600 : 1500;
   const token = {}; testRun = token;
   $('#output').innerHTML = `<div>Simulating the flight at 100 Hz…</div><div class="progress"><div id="prog"></div></div>`;
   let extra = null;
@@ -8645,7 +8780,7 @@ function testFlight() {
     if (testRun !== token) return;
     const t0 = performance.now();
     while (!f.done && f.t < maxT && performance.now() - t0 < 30) {
-      for (let i = 0; i < 500 && !f.done; i++) f.step(0.01);
+      for (let i = 0; i < 500 && !f.done; i++) f.advance(0.01);
       if (extra === null && (f.missionState !== 'pending' || (!orbit && f.ballistic))) extra = f.t + 2;
       if (extra !== null && f.t >= extra) break;
       if (orbit && f.program.status !== 'running' && f.throttle === 0 && f.missionState === 'pending' && f.t > 60 && f.d.peri < 0 && f.d.vr < 0 && f.t - (f.apogeeT ?? f.t) > 30) break;
@@ -8694,10 +8829,10 @@ function drawMiniTraj(cv, f) {
 let F = null, fAn = null, warp = 1, lastFrame = 0, accum = 0, hudTick = 0, logCount = 0, particles = [], stars = [], boom = null, reportShown = false, running = false;
 let armed = true, mapOn = false, mapZoom = 1, bannerKey = '', reportFrom = 'build';
 let fxEv = 0, pendingSep = false, cautionOn = false; // effects bookkeeping (presentation only)
-const WARPS = [1, 2, 5, 10, 25, 50, 100];
+const WARPS = [1, 2, 5, 10, 25, 50, 100, 1000, 10000];
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 function buildWarp() {
-  $('#warp').innerHTML = WARPS.map(w => `<button class="btn ${w === warp ? 'on' : ''}" data-w="${w}">${w}×</button>`).join('');
+  $('#warp').innerHTML = WARPS.map(w => `<button class="btn ${w === warp ? 'on' : ''}" data-w="${w}">${w >= 1000 ? w / 1000 + 'k' : w}×</button>`).join('');
   $('#warp').querySelectorAll('button').forEach(b => b.onclick = () => setWarp(+b.dataset.w));
 }
 function setWarp(w) { warp = w; buildWarp(); }
@@ -8786,8 +8921,9 @@ function loop(now) {
   if (!running) return;
   const real = Math.min(0.1, (now - lastFrame) / 1000); lastFrame = now;
   if (!F.done && armed) {
-    accum += real * warp; let n = 0;
-    while (accum >= 0.01 && n < 4000 && !F.done) { F.step(0.01); accum -= 0.01; n++; }
+    accum += real * warp; const t0 = performance.now();
+    while (accum >= 0.01 && !F.done && performance.now() - t0 < 14) { const k = F.advance(0.01); accum -= 0.01 * k; }
+    if (accum > 0.5) accum = 0.5; // the computer could not keep up with this warp; play slower rather than stutter
     if (F.done) {
       accum = 0; setWarp(1);
       const impact = !F.failure && F.liftoffT !== null && F.d.alt <= 1 && !F.userEnded;
@@ -8810,6 +8946,7 @@ function loop(now) {
 function fxEvents() {
   while (fxEv < F.events.length) {
     const m = F.events[fxEv++].msg, air = Math.min(1, F.d.p / P0);
+    if (/ignition$|separation$/i.test(m) && warp > 100) setWarp(10); // slow down so a short burn is visible
     if (/ignition$/i.test(m)) SFX.ignition(air);
     else if (/ separation$/.test(m)) { SFX.separation(); pendingSep = true; }
     else if (/cut-off|burnout|depleted/i.test(m)) SFX.cutoff(air);
@@ -8989,7 +9126,7 @@ function drawMap() {
 function renderHud() {
   const d = F.d, tp = F.liftoffT === null ? (F.engine === 'off' ? 0 : F.t - F.ignT) : F.t - F.liftoffT;
   const hh = Math.floor(Math.abs(tp) / 3600), mm = Math.floor(Math.abs(tp) % 3600 / 60), ss = Math.floor(Math.abs(tp) % 60);
-  $('#tplus').textContent = `${F.liftoffT === null ? 'T–' : 'T+'} ${hh ? hh + ':' : ''}${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}${warp > 1 ? `   ${warp}× time` : ''}`;
+  $('#tplus').textContent = `${F.liftoffT === null ? 'T–' : 'T+'} ${hh ? hh + ':' : ''}${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}${warp > 1 ? `   ${warp.toLocaleString('en-US')}× time` : ''}${F.onRails ? '   coasting on rails' : ''}`;
   const altKm = Math.max(0, d.alt) / 1000;
   $('#hAlt').innerHTML = `${fmt(altKm, altKm >= 100 ? 1 : 2)}<small>km</small>`;
   const aoa = Math.asin(Math.min(1, F._aux ? F._aux.sina : 0)) / DEG;
@@ -9044,7 +9181,7 @@ function renderHud() {
   if (!F.done) {
     if (F.missionState === 'success' && o.type === 'orbit' && bannerKey !== 'orbit') {
       bannerKey = 'orbit'; markDone(F.mission.id); setWarp(1);
-      showBanner('In orbit', `${fmt(d.peri / 1000, 0)} × ${fmt(d.apo / 1000, 0)} km, one lap every ${fmt(d.period / 60, 1)} minutes. Open the map to see it, or read the report.`, 'View flight report', openReport, 'Open map', () => { $('#banner').classList.add('hidden'); if (!mapOn) $('#mapBtn').click(); });
+      showBanner('In orbit', `${fmt(d.peri / 1000, 0)} × ${fmt(d.apo / 1000, 0)} km, one lap every ${fmt(d.period / 60, 1)} minutes. Open the map to see it, or read the report.`, 'View flight report', openReport, mapOn ? null : 'Open map', mapOn ? null : () => { $('#banner').classList.add('hidden'); if (!mapOn) $('#mapBtn').click(); });
     } else if (F.ballistic && o.type === 'altitude' && bannerKey !== 'apogee') {
       bannerKey = 'apogee';
       showBanner(F.reached ? 'Apogee, objective complete' : `Apogee, short of ${o.value / 1000} km`, 'The vehicle is falling back. Keep watching at high time warp, or read the report now.', 'View flight report');

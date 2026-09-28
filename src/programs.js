@@ -211,6 +211,67 @@ function* flight(ship) {
 `,
   },
   {
+    id: 'hohmann', title: 'Higher orbit: Hohmann transfer', design: 'orbiter', mission: 'M007',
+    summary: 'Reach a low orbit, then raise it to 400 km with two short burns half an orbit apart. Uses all three Kestrel ignitions.',
+    code: `// Higher orbit: Hohmann transfer
+// The cheapest way between two circular orbits is two burns:
+//   burn 1, prograde: raises the far side of the orbit (the apoapsis) to the new height
+//   coast half an orbit, about 46 minutes, to that new apoapsis
+//   burn 2, prograde: raises the near side (the periapsis) to match, making it circular
+// Use time warp for the coast. Above 140 km the simulation coasts on an exact Kepler orbit.
+
+const LOW = 200000;      // m, first orbit
+const HIGH = 400000;     // m, target orbit
+
+function* flight(ship) {
+  // --- ascent: direct insertion into a low orbit (one Kestrel ignition) ---
+  ship.throttle(1); ship.pitch(90); ship.ignite();
+  yield ship.until(() => ship.altitude > 800);
+  while (ship.propellant > 0) {
+    const k = Math.min(1, (ship.altitude - 800) / (50000 - 800));
+    ship.pitch(90 - 70 * Math.sqrt(k));
+    yield;
+  }
+  yield ship.wait(1);
+  ship.stage();
+  ship.surfacePrograde();
+  yield ship.wait(0.5);
+  ship.ignite();
+  while (ship.periapsis < LOW - 15000 && ship.propellant > 0) {
+    const eta = ship.verticalSpeed > 0 ? ship.timeToApoapsis : -10;
+    const p = 5 + 0.5 * (75 - eta) + 0.5 * (LOW - ship.apoapsis) / 1000;
+    if (ship.dynamicPressure > 300) ship.surfacePrograde();
+    else ship.pitch(Math.max(-20, Math.min(45, p)));
+    yield;
+  }
+  ship.shutdown();
+  ship.log('Low orbit', (ship.periapsis / 1000).toFixed(0), 'x', (ship.apoapsis / 1000).toFixed(0), 'km');
+
+  // --- plan the transfer (vis-viva) ---
+  ship.prograde();
+  yield ship.wait(10);                               // let the reaction wheels line up
+  const r1 = ship.radius, r2 = ship.earthRadius + HIGH, aT = (r1 + r2) / 2;
+  const dv1 = Math.sqrt(ship.mu * (2 / r1 - 1 / aT)) - ship.orbitalSpeed;
+  const dv2 = Math.sqrt(ship.mu / r2) - Math.sqrt(ship.mu * (2 / r2 - 1 / aT));
+  ship.log('Transfer: burn 1', dv1.toFixed(0), 'm/s, burn 2', dv2.toFixed(0), 'm/s, coast', (Math.PI * Math.sqrt(aT ** 3 / ship.mu) / 60).toFixed(0), 'min');
+
+  // --- burn 1: raise the apoapsis ---
+  ship.ignite();
+  yield ship.until(() => ship.apoapsis >= HIGH || ship.propellant <= 0);
+  ship.shutdown();
+
+  // --- coast to the new apoapsis, then burn 2 centred on it ---
+  const ve = ship.isp * 9.80665;
+  const burnTime = ship.mass * (1 - Math.exp(-dv2 / ve)) / (ship.maxThrust / ve);
+  yield ship.until(() => ship.timeToApoapsis < burnTime / 2 && ship.verticalSpeed > 0);
+  ship.ignite();
+  yield ship.until(() => ship.periapsis >= HIGH - 15000 || ship.propellant <= 0);
+  ship.shutdown();
+  ship.log('Orbit', (ship.periapsis / 1000).toFixed(0), 'x', (ship.apoapsis / 1000).toFixed(0), 'km');
+}
+`,
+  },
+  {
     id: 'blank', title: 'Blank program', design: null, mission: null,
     summary: 'A starting point with the structure in place.',
     code: `// My flight program

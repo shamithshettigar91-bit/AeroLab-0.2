@@ -180,7 +180,10 @@ def reproduce(manifest: dict) -> dict:
     """Rerun every stored request against the current code and compare."""
     check_schema(manifest)
     now_code = code_version()
-    results = runner.fly([r["request"] for r in manifest["runs"]])
+    # Replay each run with the physics version it was recorded under. The core keeps older
+    # models runnable exactly, so a V0.1 or V0.2 experiment still reproduces bit for bit.
+    recorded = manifest["model"]["physics"]
+    results = runner.fly([{**r["request"], "model": r["request"].get("model", recorded)} for r in manifest["runs"]])
     now_model = runner.call({"cmd": "parts"})["model"]
     rows, counts = [], {"identical": 0, "within tolerance": 0, "different": 0}
     for entry, res in zip(manifest["runs"], results):

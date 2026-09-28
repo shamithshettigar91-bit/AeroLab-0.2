@@ -63,7 +63,7 @@ check('solid motor without fins tumbles', t.f.failure && t.f.failure.kind === 't
 const run = (design, opts = {}, maxT = 3000, stop) => {
   const f = new Flight(design, opts);
   if (opts.manualIgnite) f.ignite();
-  while (!f.done && f.t < maxT && !(stop && stop(f))) f.step(0.01);
+  while (!f.done && f.t < maxT && !(stop && stop(f))) f.advance(0.01);
   return f;
 };
 const untilResolved = f => f.missionState !== 'pending' || (f.ballistic && f.mission.objective.type === 'altitude');
@@ -161,11 +161,11 @@ check('syntax error reports its line', FC.checkProgram('function* flight(ship) {
 }
 
 console.log('\nExample programs fly their reference rockets');
-const cases = [['hello', 'sounder', 'M002'], ['blank', 'sounder', 'M002'], ['maxq', 'sounder', 'M002'], ['staging', 'twin', 'M003'],
+const cases = [['hohmann', 'orbiter', 'M007'], ['hello', 'sounder', 'M002'], ['blank', 'sounder', 'M002'], ['maxq', 'sounder', 'M002'], ['staging', 'twin', 'M003'],
   ['orbit', 'orbiter', 'M004'], ['orbit', 'orbiter', 'M005'], ['orbit', 'orbiter', 'M006'], ['orbit_eta', 'orbiter', 'M004'], ['orbit_eta', 'orbiter', 'M005']];
 const results = {};
 for (const [id, d, m] of cases) {
-  const f = run(REF[d], { program: prog(id), mission: m }, 3000, untilResolved);
+  const f = run(REF[d], { program: prog(id), mission: m }, m === 'M007' ? 12000 : 3000, untilResolved);
   results[id + m] = f;
   check(`${id} on ${REF[d].name} completes ${m}`, f.missionState === 'success', `${flightReport(f, analyze(REF[d], m)).cause}`);
 }
@@ -192,6 +192,39 @@ console.log('\nMission rules and failure analysis');
   const h = run(REF.orbiter, { program: noCirc, mission: 'M004' }, 3000, x => x.done || x.missionState !== 'pending');
   check('skipping circularisation does not reach orbit', h.missionState !== 'success' && h.done);
   check('orbit failure report gives a ΔV budget', flightReport(h, analyze(REF.orbiter, 'M004')).evidence.some(x => x.includes('Lost to gravity')));
+}
+
+// ======================= V0.3: coasting on rails, model versions =======================
+console.log('\nKepler coasting (AeroModel 0.3)');
+{
+  const r0 = RE + 200000, v0 = Math.sqrt(MU / r0) * 1.03, el = orbitElements(r0, 0, 0, v0), Ns = Math.round(el.period);
+  const acc = s => { const r = Math.hypot(s[0], s[1]), g = MU / r ** 3; return [s[2], s[3], -g * s[0], -g * s[1]]; };
+  let R4 = [r0, 0, 0, v0]; const h = 0.01;
+  for (let i = 0; i < Ns * 100; i++) { const k1 = acc(R4), k2 = acc(R4.map((v, j) => v + k1[j] * h / 2)), k3 = acc(R4.map((v, j) => v + k2[j] * h / 2)), k4 = acc(R4.map((v, j) => v + k3[j] * h)); R4 = R4.map((v, j) => v + h / 6 * (k1[j] + 2 * k2[j] + 2 * k3[j] + k4[j])); }
+  const K1 = C.keplerStep(r0, 0, 0, v0, Ns);
+  let K = [r0, 0, 0, v0]; for (let i = 0; i < Ns; i++) K = C.keplerStep(...K, 1);
+  check('Kepler step matches RK4 over a full orbit (< 1 m)', Math.hypot(K1[0] - R4[0], K1[1] - R4[1]) < 1, Math.hypot(K1[0] - R4[0], K1[1] - R4[1]));
+  check('chained 1 s Kepler steps equal one jump (< 1 mm)', Math.hypot(K[0] - K1[0], K[1] - K1[1]) < 1e-3);
+  check('Kepler step conserves energy', near((K1[2] ** 2 + K1[3] ** 2) / 2 - MU / Math.hypot(K1[0], K1[1]), v0 * v0 / 2 - MU / r0, 1e-12));
+  check('unbound paths are left to the integrator', C.keplerStep(r0, 0, 0, Math.sqrt(2 * MU / r0) * 1.01, 10) === null);
+}
+{
+  const fly = (model, frame, until = 400000) => { const f = new Flight(REF.orbiter, { program: prog('orbit'), mission: 'M004', model });
+    while (!f.done && f.stepCount < until) { let n = 0; while (n < frame && !f.done && f.stepCount < until) n += model === 'AeroModel 0.2' ? (f.step(0.01), 1) : f.advance(0.01); } return f; };
+  const a = fly(undefined, 1), b = fly(undefined, 5000), old = fly('AeroModel 0.2', 1, a.stepCount); // compare at the very same step
+  check('rails flights do not depend on frame size or time warp', a.x === b.x && a.vy === b.vy && a.stepCount === b.stepCount && JSON.stringify(a.events) === JSON.stringify(b.events));
+  check('rails coast stays within 1 km of the full integrator after an hour in orbit', Math.hypot(a.x - old.x, a.y - old.y) < 1000, Math.hypot(a.x - old.x, a.y - old.y));
+  check('rails coast keeps apoapsis within 50 m of the full integrator', Math.abs(a.d.apo - old.d.apo) < 50, a.d.apo - old.d.apo);
+  check('coasting on rails was actually used', a.tele.length < old.tele.length / 5, `${a.tele.length} vs ${old.tele.length}`);
+  const legacy = new Flight(REF.orbiter, { model: 'AeroModel 0.2' });
+  check('legacy models never coast on rails', legacy.railsAllowed === false && new Flight(REF.orbiter).railsAllowed === true);
+}
+{
+  const f = results.hohmannM007;
+  check('Hohmann transfer reaches the 380–420 km band', f.d.peri >= 380000 && f.d.apo <= 420000, `${f.d.peri} x ${f.d.apo}`);
+  check('Hohmann transfer uses all three Kestrel ignitions', f.ignitionsLeft === 0);
+  const burns = f.events.filter(e => e.msg === 'Stage 2 ignition').map(e => e.t);
+  check('Hohmann burns are about half an orbit apart (40–50 min)', burns.length === 3 && burns[2] - burns[1] > 2400 && burns[2] - burns[1] < 3000, burns);
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

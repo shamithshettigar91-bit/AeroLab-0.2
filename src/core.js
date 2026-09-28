@@ -6,9 +6,13 @@ const G0 = 9.80665, MU = 3.986004418e14, RE = 6371000, WE = -7.2921159e-5;
 const P0 = 101325, RAIR = 287.053, DIAM = 0.6, AREF = Math.PI * (DIAM / 2) ** 2;
 const DEG = Math.PI / 180;
 const MODEL = {
-  physics: 'AeroModel 0.2', atmosphere: 'US76-lite 1.0', gravity: 'PointMass 1.0', integrator: 'RK4 at 100 Hz',
+  physics: 'AeroModel 0.3', coast: 'Kepler on rails above 140 km', atmosphere: 'US76-lite 1.0', gravity: 'PointMass 1.0', integrator: 'RK4 at 100 Hz',
   staging: 'Impulse 1.0', flightComputer: 'FlightComputer 1.0 at 20 Hz',
 };
+// Physics versions this core can still run exactly, for reproducing old experiments.
+// AeroModel 0.1 and 0.2 integrate every step with RK4 (no coasting on rails).
+const LEGACY_MODELS = ['AeroModel 0.1', 'AeroModel 0.2'];
+const RAILS_ALT = 140000; // m. Above this, drag is below 1e-5 m/s² for any AeroLab vehicle, so coasts can follow a Kepler orbit.
 const PROGRAM_TICK = 5; // simulation steps per flight-computer tick (100 Hz / 5 = 20 Hz)
 
 // ---------- Part definitions (data, not code) ----------
@@ -68,6 +72,8 @@ const MISSIONS = [
     objective: { type: 'orbit', peri: 150000 }, constraints: { minStages: 2 }, successMsg: 'Orbit achieved. Mission objective complete.', dvHint: 9000 },
   { id: 'M005', title: 'Circular orbit', brief: 'Reach a circular orbit: periapsis and apoapsis both between 180 and 220 km.',
     objective: { type: 'orbit', peri: 180000, apo: 220000 }, constraints: { minStages: 2 }, successMsg: 'Circular orbit achieved. Mission objective complete.', dvHint: 9200 },
+  { id: 'M007', title: 'Higher orbit', brief: 'Reach a circular 400 km orbit: periapsis and apoapsis both between 380 and 420 km. A Hohmann transfer from a low orbit is the efficient way.',
+    objective: { type: 'orbit', peri: 380000, apo: 420000 }, constraints: { minStages: 2 }, successMsg: 'Higher orbit reached. Mission objective complete.', dvHint: 9400 },
   { id: 'M006', title: 'Hands off', brief: 'Reach orbit (periapsis above 150 km) with the flight program alone. Any manual input fails the mission.',
     objective: { type: 'orbit', peri: 150000 }, constraints: { minStages: 2, programOnly: true }, successMsg: 'Autonomous orbit achieved. Mission objective complete.', dvHint: 9000 },
 ];
@@ -268,6 +274,28 @@ function orbitElements(x, y, vx, vy) {
   return { apo: a * (1 + e) - RE, peri: a * (1 - e) - RE, ecc: e, sma: a, period, timeToApo, timeToPeri, bound: true };
 }
 
+// Advance a bound two-body orbit by dt exactly, using f and g functions with the
+// eccentric-anomaly form of Kepler's equation (stable for circular orbits too).
+// Returns null for unbound paths, which stay with the numerical integrator.
+function keplerStep(x, y, vx, vy, dt) {
+  const r0 = Math.hypot(x, y), v2 = vx * vx + vy * vy, eps = v2 / 2 - MU / r0;
+  if (eps >= 0) return null;
+  const a = -MU / (2 * eps), n = Math.sqrt(MU / (a * a * a)), sa = Math.sqrt(a), smu = Math.sqrt(MU);
+  const s0 = (x * vx + y * vy) / smu, c = 1 - r0 / a, dM = n * dt;
+  let dE = dM;
+  for (let i = 0; i < 30; i++) {
+    const F = dE - c * Math.sin(dE) + s0 / sa * (1 - Math.cos(dE)) - dM;
+    const dF = 1 - c * Math.cos(dE) + s0 / sa * Math.sin(dE);
+    const step = F / dF; dE -= step;
+    if (Math.abs(step) < 1e-13) break;
+  }
+  const cE = Math.cos(dE), sE = Math.sin(dE);
+  const r = a + (r0 - a) * cE + s0 * sa * sE;
+  const f = 1 - a / r0 * (1 - cE), g = a * s0 / smu * (1 - cE) + r0 * Math.sqrt(a / MU) * sE;
+  const fd = -Math.sqrt(MU * a) / (r * r0) * sE, gd = 1 - a / r * (1 - cE);
+  return [f * x + g * vx, f * y + g * vy, fd * x + gd * vx, fd * y + gd * vy];
+}
+
 // ---------- Drag coefficient ----------
 function machFactor(M) {
   if (M < 0.8) return 1;
@@ -301,7 +329,7 @@ class Debris {
 }
 
 // ---------- Flight simulation ----------
-// opts: { program: source string, mission: id, seed: integer }
+// opts: { program: source string, mission: id, seed: integer, model: physics version (default: current) }
 class Flight {
   constructor(design, opts = {}) {
     this.design = { stack: [...design.stack], fins: design.fins || null };
@@ -309,6 +337,7 @@ class Flight {
     this.veh = buildVehicle({ stack: this.stack, fins: this.fins });
     const v = this.veh;
     this.mission = missionById(opts.mission || 'M002'); this.seed = opts.seed ?? 1;
+    this.physics = opts.model || MODEL.physics; this.railsAllowed = !LEGACY_MODELS.includes(this.physics); this.onRails = false;
     this.t = 0; this.prop = v.propCap; this.stepCount = 0;
     this.x = 0; this.y = RE; this.vx = -WE * RE; this.vy = 0; this.th = Math.PI / 2; this.om = WE;
     this.clamped = true; this.engine = 'off'; this.ignT = 0; this.throttleCmd = 1; this.throttle = 0;
@@ -471,9 +500,52 @@ class Flight {
     const rate = 20 * DEG * dt; this.gimbal += Math.max(-rate, Math.min(rate, cmd - this.gimbal));
   }
 
-  step(dt) {
+  // Coasting on rails (AeroModel 0.3). Decided from the state alone, never from time warp,
+  // so a flight is identical at 1× and 10,000×.
+  railsOK() {
+    if (!this.railsAllowed || this.done || this.clamped || this.throttle !== 0 || this.engine === 'ignition' || this.pitchInput !== 0) return false;
+    if (this.stepCount % PROGRAM_TICK !== 0 || this.d.alt < RAILS_ALT + 2000) return false;
+    const r = Math.hypot(this.x, this.y), eps = (this.vx * this.vx + this.vy * this.vy) / 2 - MU / r;
+    return eps < 0;
+  }
+  // How many base steps one rails chunk may cover: one program tick while the program is
+  // steering or checking a condition, up to one second otherwise.
+  railsChunk(dt) {
+    let k = 100;
+    if (this.debris.some(db => db.alive)) k = PROGRAM_TICK;
+    const P = this.program;
+    if (P && (P.status === 'ready' || P.status === 'running')) {
+      if (!P.wait || P.wait.kind !== 'time') k = PROGRAM_TICK;
+      else k = Math.min(k, Math.max(PROGRAM_TICK, Math.ceil((P.wait.until - this.t) / dt / PROGRAM_TICK - 1e-9) * PROGRAM_TICK));
+    }
+    return k;
+  }
+  // Advance by one base step, or by a whole rails chunk when coasting. Returns steps taken.
+  advance(dt) {
+    if (!this.railsOK()) { this.onRails = false; this.step(dt); return 1; }
+    const k = this.railsChunk(dt);
+    if (this.program && this.stepCount % PROGRAM_TICK === 0) { this.program.tick(); if (this.done || !this.railsOK()) { this.onRails = false; this.step(dt, true); return 1; } }
+    let T = 0; for (let i = 0; i < k; i++) T += dt;
+    const N = keplerStep(this.x, this.y, this.vx, this.vy, T);
+    if (!N || Math.hypot(N[0], N[1]) - RE < RAILS_ALT) { this.onRails = false; this.step(dt, true); return 1; }
+    this.onRails = true;
+    for (let i = 0; i < k; i++) { this.t += dt; for (const db of this.debris) db.step(dt); }
+    this.stepCount += k;
+    [this.x, this.y, this.vx, this.vy] = N;
+    // attitude: held by the reaction wheels if attitude hold is on, otherwise free rotation
+    if (this.sas && this.veh.wheelTorque > 0) { this.th = this.targetAngle(); this.om = WE; this.iErr = 0; }
+    else this.th += this.om * T;
+    const r = Math.hypot(this.x, this.y), atm = atmosphere(r - RE), m = this.veh.dryMass + this.prop;
+    const ax = this.vx + WE * this.y, ay = this.vy - WE * this.x, va = Math.hypot(ax, ay);
+    this._aux = { tauAero: 0, T: 0, D: 0, q: 0.5 * atm.rho * va * va, mach: va / atm.a, sina: 0, m, atm, alt: r - RE, va, gm: MU / (r * r), fxNG: 0, fyNG: 0 };
+    this.tauAero = 0; this.gimbal = 0; this.wheelTau = 0;
+    this.after(T, null, true);
+    return k;
+  }
+
+  step(dt, ticked = false) {
     if (this.done) return;
-    if (this.program && this.stepCount % PROGRAM_TICK === 0) this.program.tick();
+    if (!ticked && this.program && this.stepCount % PROGRAM_TICK === 0) this.program.tick();
     this.stepCount++;
     if (this.done) return;
     const v = this.veh;
@@ -512,7 +584,7 @@ class Flight {
     this.after(dt, k1);
   }
 
-  after(dt, k1) {
+  after(dt, k1, rails = false) {
     const v = this.veh;
     if (this.prop <= 0 && this.throttle > 0 && !this.burnout) {
       this.prop = 0; this.burnout = true; this.burnoutT = this.t; this.engine = 'burnout';
@@ -551,7 +623,7 @@ class Flight {
     if (!this.clamped && d.alt <= 0 && this.liftoffT !== null && this.t - this.liftoffT > 1) {
       this.log(`Impact ${(d.downrange / 1000).toFixed(1)} km downrange`, 'bad'); this.end();
     }
-    if (this.t >= this.teleNext) { this.teleNext += 0.1; this.record(d); }
+    if (this.t >= this.teleNext) { if (rails) this.teleNext = this.t + 5; else this.teleNext += 0.1; this.record(d); } // 0.2 Hz while on rails
   }
 
   evalMission(d) {
@@ -748,5 +820,5 @@ function flightReport(f, an) {
   return R;
 }
 
-if (typeof module !== 'undefined') module.exports = { PARTS, MISSIONS, missionById, analyze, buildVehicle, massProps, stageSegments, Flight, flightReport,
+if (typeof module !== 'undefined') module.exports = { PARTS, MISSIONS, missionById, analyze, buildVehicle, massProps, stageSegments, Flight, flightReport, keplerStep, LEGACY_MODELS, RAILS_ALT,
   atmosphere, orbitElements, MODEL, G0, MU, RE, DEG, PROGRAM_TICK };

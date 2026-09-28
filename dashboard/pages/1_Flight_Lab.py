@@ -62,7 +62,7 @@ with col_d:
     program, plan, sas, stop_apogee, seed = None, [], True, False, 1
     if control == "Flight program":
         ex = st.selectbox("Load an example program", [p["id"] for p in PROGS],
-                          index=next((i for i, p in enumerate(PROGS) if p["id"] == ("orbit" if M[mission]["objective"]["type"] == "orbit" else "staging" if mission == "M003" else "hello")), 0),
+                          index=next((i for i, p in enumerate(PROGS) if p["id"] == ("hohmann" if mission == "M007" else "orbit" if M[mission]["objective"]["type"] == "orbit" else "staging" if mission == "M003" else "hello")), 0),
                           format_func=lambda i: next(p["title"] for p in PROGS if p["id"] == i))
         if st.session_state.get("lab_ex") != ex:
             st.session_state["lab_ex"] = ex

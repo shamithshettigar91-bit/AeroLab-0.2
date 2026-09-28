@@ -40,6 +40,7 @@ Open `index.html` in any modern browser (Chrome, Edge, Firefox, Safari). No inst
 | M004 Orbit | Periapsis above 150 km, engine off | Orbiter |
 | M005 Circular orbit | Periapsis and apoapsis between 180 and 220 km | Orbiter |
 | M006 Hands off | M004 with the program alone; any manual input fails | Orbiter |
+| M007 Higher orbit | Periapsis and apoapsis between 380 and 420 km | Orbiter, with the Hohmann example |
 
 Flight controls (manual flight, or after *Take manual control*):
 
@@ -52,7 +53,7 @@ Flight controls (manual flight, or after *Take manual control*):
 | X | Cut engine |
 | M | Map view; scroll to zoom |
 | N | Sound on / off |
-| , / . | Time warp down / up (1× to 100×) |
+| , / . | Time warp down / up (1× to 10,000×) |
 | Esc | End flight and open the report |
 
 **Sound and effects.** Engines roar and crackle, and the sound thins to a muffled rumble as the air runs out. Wind builds with dynamic pressure, and every ignition, separation, cut-off and sonic boom has its own sound. A two-tone master-caution alarm sounds near the structural limits, and a chime plays when a mission objective is met. Every sound is synthesised in the browser, so there are no audio files. Crashes explode with a fireball, sparks, smoke and the rocket's own parts tumbling apart; on the ground they raise a dust cloud. Stage separation vents a puff of gas, and exhaust smoke rolls across the pad. The *Sound* button or N mutes it, and the choice is remembered. Browsers only start audio after a click or key press. With reduced motion set in the operating system, screen shake is off and effects are lighter.
@@ -119,10 +120,11 @@ python tools/reproduce.py --all            reproduce every saved experiment
 python tools/reproduce.py experiments/EXP-….json
 ```
 
-Two regression baselines are committed:
+Three regression baselines are committed:
 
 - `experiments/EXP-BASELINE-AeroModel-0.1.json` holds the eleven designs of the V0.1 learning path.
 - `experiments/EXP-BASELINE-AeroModel-0.2.json` holds those eleven plus eight V0.2 flights: staging, orbit, and three deliberate mistakes.
+- `experiments/EXP-BASELINE-AeroModel-0.3.json` holds all of those under the current model, plus the Hohmann transfer to 400 km.
 
 Both reproduce exactly. V0.2 added telemetry channels, so an older manifest is also compared in its original format, with telemetry limited to the V0.1 channels. That is how the V0.1 baseline can prove bit-for-bit reproduction under AeroModel 0.2. After any physics change, `reproduce.py --all` shows exactly which outcomes moved. If a change is intentional, bump the model version in `core.js` and record a new baseline with `python tools/record_baseline.py`.
 
@@ -221,7 +223,7 @@ Designs are saved in the browser's local storage as versions (`Orbiter_v001`, `O
 
 ## Model versions
 
-Physics AeroModel 0.2, atmosphere US76-lite 1.0, gravity point mass 1.0, integrator RK4 at 100 Hz, staging Impulse 1.0, flight computer 1.0 at 20 Hz. These are shown in the builder so results can be traced to the model that produced them. The physics model is described in [docs/PHYSICS_MODEL.md](docs/PHYSICS_MODEL.md).
+Physics AeroModel 0.3, atmosphere US76-lite 1.0, gravity point mass 1.0, integrator RK4 at 100 Hz with Kepler coasting on rails above 140 km, staging Impulse 1.0, flight computer 1.0 at 20 Hz. The core can still run AeroModel 0.1 and 0.2 exactly, and experiments replay with the model they were recorded under. These are shown in the builder so results can be traced to the model that produced them. The physics model is described in [docs/PHYSICS_MODEL.md](docs/PHYSICS_MODEL.md).
 
 ## Not yet in V0.2
 

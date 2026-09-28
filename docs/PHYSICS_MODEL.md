@@ -1,6 +1,6 @@
 # AeroLab physics model, V0.2
 
-Model identifiers: AeroModel 0.2, US76-lite 1.0, PointMass 1.0, RK4 at 100 Hz, Impulse 1.0 (staging), FlightComputer 1.0 at 20 Hz.
+Model identifiers: AeroModel 0.3 (Kepler coasting on rails, section below), and previously AeroModel 0.2, US76-lite 1.0, PointMass 1.0, RK4 at 100 Hz, Impulse 1.0 (staging), FlightComputer 1.0 at 20 Hz.
 
 AeroModel 0.2 adds staging, reaction wheels, engine restarts, orbital elements and the flight computer. It is a strict extension of 0.1. Every calculation 0.1 made is still made the same way, in the same order, so a V0.1 design flies bit-for-bit identically; the committed V0.1 baseline proves it (`python tools/reproduce.py --all`). The new sections are marked *(0.2)*.
 
@@ -113,6 +113,28 @@ Computed every step from the inertial state, assuming vacuum and a point-mass Ea
 An unbound path (ε ≥ 0) has an infinite apoapsis. While the vehicle is in the atmosphere these values ignore drag, so apoapsis is overestimated. Above about 140 km the modelled density is so low that an orbit stays unchanged for the length of a mission.
 
 A mission's orbit objective is met when the engine is off, the vehicle is above 100 km, and the periapsis (and, if the mission sets one, the apoapsis) is inside the band.
+
+## Coasting on rails *(0.3)*
+
+Above 140 km the modelled drag on any AeroLab vehicle is below 10⁻⁵ m/s², so an unpowered coast follows a two-body Kepler orbit. AeroModel 0.3 advances such coasts analytically instead of with RK4. Each chunk uses the f and g functions with the eccentric-anomaly form of Kepler's equation:
+
+  n Δt = ΔE − (1 − r₀/a) sin ΔE + (r₀·v₀ / √(μa)) (1 − cos ΔE)
+
+This form is solved by Newton's method and stays stable for circular orbits.
+
+Rails apply only when all of these hold:
+
+- the vehicle is off the pad, with no engine running or igniting;
+- the altitude is above 142 km, and the whole chunk stays above 140 km;
+- the orbit is bound;
+- there is no pilot pitch input;
+- the step counter sits on a flight-computer tick.
+
+The chunk is 1 s. It drops to one tick (0.05 s) while a flight program is steering or waiting on a condition, or while a spent stage is still falling. Attitude with reaction wheels is held exactly on target, and without them the body keeps rotating freely.
+
+The decision uses only the simulation state, never the time warp, so a flight is bit-identical at 1× and 10,000× (tested). Over one full orbit the Kepler step matches RK4 to under 1 m. After an hour in a 200 km orbit, the rails path stays within 1 km of the full integrator, the difference being the faint drag that rails ignore. Telemetry is recorded every 5 s while on rails.
+
+Physics versions: AeroModel 0.1 and 0.2 never coast on rails. `new Flight(design, {model: 'AeroModel 0.2'})` runs exactly as V0.2 did, and experiment reproduction replays each manifest under the model it records.
 
 ## Flight computer *(0.2)*
 

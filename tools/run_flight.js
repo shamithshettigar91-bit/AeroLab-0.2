@@ -17,7 +17,9 @@
 //   throttlePlan  [{from, to, throttle}] by altitude (manual flights only)
 //   telemetry     include the 10 Hz telemetry
 //   stopAtApogee  stop at the first apogee (V0.1 sounding flights)
-//   maxTime       simulated seconds; default 900, or 3600 for orbit missions
+//   maxTime       simulated seconds; default 900, or 3600 for orbit missions (12000 for M007)
+//   model         physics version to run, e.g. 'AeroModel 0.2' to reproduce an old experiment exactly
+//                 (default: the current model)
 const { PARTS, MISSIONS, missionById, analyze, Flight, flightReport, MODEL } = require('../src/core.js');
 const { checkProgram } = require('../src/flight_computer.js');
 const { REFERENCE_DESIGNS, EXAMPLE_PROGRAMS } = require('../src/programs.js');
@@ -35,10 +37,10 @@ function fly(run) {
   const an = analyze(run.design, run.mission);
   if (!an.valid) return { analysis: summarize(an), error: 'Design is not valid. Fix the issues first.' };
   if (run.program) { const c = checkProgram(run.program); if (!c.ok) return { analysis: summarize(an), error: `Program error${c.error.line ? ` on line ${c.error.line}` : ''}: ${c.error.message}` }; }
-  const f = new Flight(run.design, { program: run.program || null, mission: run.mission, seed: run.seed ?? 1 });
+  const f = new Flight(run.design, { program: run.program || null, mission: run.mission, seed: run.seed ?? 1, model: run.model });
   if (run.sas !== undefined && f.veh.hasComputer) f.sas = !!run.sas;
   const plan = run.program ? [] : (run.throttlePlan || []);
-  const maxT = run.maxTime || (orbit ? 3600 : 900);
+  const maxT = run.maxTime || (mission.id === 'M007' ? 12000 : orbit ? 3600 : 900);
   if (!run.program) f.ignite();
   let resolvedAt = null;
   while (!f.done && f.t < maxT) {
@@ -47,7 +49,7 @@ function fly(run) {
       for (const p of plan) if (alt >= p.from && alt < p.to) thr = p.throttle;
       f.setThrottle(thr);
     }
-    f.step(0.01);
+    f.advance(0.01);  // one step, or a whole Kepler coast chunk above 140 km (AeroModel 0.3)
     if (run.stopAtApogee && f.apogeeT !== null) break;
     if (!run.stopAtApogee && (run.program || run.mission)) {
       // stop 2 s after the outcome is known, so every run ends the same way
@@ -64,7 +66,7 @@ function fly(run) {
     mission: mission.id, missionState: f.missionState, stages: f.stageLog, stageReached: f.stageNo,
     orbit: { periapsis: d.peri > -6e6 ? d.peri : null, apoapsis: Number.isFinite(d.apo) ? d.apo : null, eccentricity: d.ecc, period: d.period, bestPeriapsis: f.bestPeri > -6e6 ? f.bestPeri : null },
     propellantLeft: f.prop, flightTime: f.t,
-    program: f.program ? { status: f.program.status, error: f.program.error } : null,
+    program: f.program ? { status: f.program.status, error: f.program.error } : null, physics: f.physics,
     telemetry: run.telemetry ? f.tele : undefined,
   };
 }

@@ -56,6 +56,11 @@ V02 = [
     ("Orbiter, no circularisation (M004)", "orbiter", "M004", no_circ),
     ("Sounder, hello program (M002)", "sounder", "M002", PROG["hello"]),
 ]
+if "hohmann" in PROG:  # AeroModel 0.3
+    V02 += [("Orbiter, Hohmann transfer to 400 km (M007)", "orbiter", "M007", PROG["hohmann"])]
+V02 = V02 + [
+
+]
 if "decoupler" in cat["parts"]:
     for label, ref, mission, code in V02:
         d = REF[ref]

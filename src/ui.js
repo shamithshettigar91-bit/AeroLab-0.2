@@ -390,7 +390,7 @@ function testFlight() {
   const res = checkUI(); if (!res || !res.ok) return;
   const a = analyze(design, missionId);
   if (!a.valid) { $('#output').innerHTML = `<div class="bad">The rocket has ${a.issues.filter(i => i.level === 'error').length} design problem(s). Fix them on the Build tab first.</div>`; return; }
-  const f = new Flight(design, { program: codeEl.value, mission: missionId }), orbit = f.mission.objective.type === 'orbit', maxT = orbit ? 3600 : 1500;
+  const f = new Flight(design, { program: codeEl.value, mission: missionId }), orbit = f.mission.objective.type === 'orbit', maxT = missionId === 'M007' ? 12000 : orbit ? 3600 : 1500;
   const token = {}; testRun = token;
   $('#output').innerHTML = `<div>Simulating the flight at 100 Hz…</div><div class="progress"><div id="prog"></div></div>`;
   let extra = null;
@@ -398,7 +398,7 @@ function testFlight() {
     if (testRun !== token) return;
     const t0 = performance.now();
     while (!f.done && f.t < maxT && performance.now() - t0 < 30) {
-      for (let i = 0; i < 500 && !f.done; i++) f.step(0.01);
+      for (let i = 0; i < 500 && !f.done; i++) f.advance(0.01);
       if (extra === null && (f.missionState !== 'pending' || (!orbit && f.ballistic))) extra = f.t + 2;
       if (extra !== null && f.t >= extra) break;
       if (orbit && f.program.status !== 'running' && f.throttle === 0 && f.missionState === 'pending' && f.t > 60 && f.d.peri < 0 && f.d.vr < 0 && f.t - (f.apogeeT ?? f.t) > 30) break;
@@ -447,10 +447,10 @@ function drawMiniTraj(cv, f) {
 let F = null, fAn = null, warp = 1, lastFrame = 0, accum = 0, hudTick = 0, logCount = 0, particles = [], stars = [], boom = null, reportShown = false, running = false;
 let armed = true, mapOn = false, mapZoom = 1, bannerKey = '', reportFrom = 'build';
 let fxEv = 0, pendingSep = false, cautionOn = false; // effects bookkeeping (presentation only)
-const WARPS = [1, 2, 5, 10, 25, 50, 100];
+const WARPS = [1, 2, 5, 10, 25, 50, 100, 1000, 10000];
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 function buildWarp() {
-  $('#warp').innerHTML = WARPS.map(w => `<button class="btn ${w === warp ? 'on' : ''}" data-w="${w}">${w}×</button>`).join('');
+  $('#warp').innerHTML = WARPS.map(w => `<button class="btn ${w === warp ? 'on' : ''}" data-w="${w}">${w >= 1000 ? w / 1000 + 'k' : w}×</button>`).join('');
   $('#warp').querySelectorAll('button').forEach(b => b.onclick = () => setWarp(+b.dataset.w));
 }
 function setWarp(w) { warp = w; buildWarp(); }
@@ -539,8 +539,9 @@ function loop(now) {
   if (!running) return;
   const real = Math.min(0.1, (now - lastFrame) / 1000); lastFrame = now;
   if (!F.done && armed) {
-    accum += real * warp; let n = 0;
-    while (accum >= 0.01 && n < 4000 && !F.done) { F.step(0.01); accum -= 0.01; n++; }
+    accum += real * warp; const t0 = performance.now();
+    while (accum >= 0.01 && !F.done && performance.now() - t0 < 14) { const k = F.advance(0.01); accum -= 0.01 * k; }
+    if (accum > 0.5) accum = 0.5; // the computer could not keep up with this warp; play slower rather than stutter
     if (F.done) {
       accum = 0; setWarp(1);
       const impact = !F.failure && F.liftoffT !== null && F.d.alt <= 1 && !F.userEnded;
@@ -563,6 +564,7 @@ function loop(now) {
 function fxEvents() {
   while (fxEv < F.events.length) {
     const m = F.events[fxEv++].msg, air = Math.min(1, F.d.p / P0);
+    if (/ignition$|separation$/i.test(m) && warp > 100) setWarp(10); // slow down so a short burn is visible
     if (/ignition$/i.test(m)) SFX.ignition(air);
     else if (/ separation$/.test(m)) { SFX.separation(); pendingSep = true; }
     else if (/cut-off|burnout|depleted/i.test(m)) SFX.cutoff(air);
@@ -742,7 +744,7 @@ function drawMap() {
 function renderHud() {
   const d = F.d, tp = F.liftoffT === null ? (F.engine === 'off' ? 0 : F.t - F.ignT) : F.t - F.liftoffT;
   const hh = Math.floor(Math.abs(tp) / 3600), mm = Math.floor(Math.abs(tp) % 3600 / 60), ss = Math.floor(Math.abs(tp) % 60);
-  $('#tplus').textContent = `${F.liftoffT === null ? 'T–' : 'T+'} ${hh ? hh + ':' : ''}${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}${warp > 1 ? `   ${warp}× time` : ''}`;
+  $('#tplus').textContent = `${F.liftoffT === null ? 'T–' : 'T+'} ${hh ? hh + ':' : ''}${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}${warp > 1 ? `   ${warp.toLocaleString('en-US')}× time` : ''}${F.onRails ? '   coasting on rails' : ''}`;
   const altKm = Math.max(0, d.alt) / 1000;
   $('#hAlt').innerHTML = `${fmt(altKm, altKm >= 100 ? 1 : 2)}<small>km</small>`;
   const aoa = Math.asin(Math.min(1, F._aux ? F._aux.sina : 0)) / DEG;
@@ -797,7 +799,7 @@ function renderHud() {
   if (!F.done) {
     if (F.missionState === 'success' && o.type === 'orbit' && bannerKey !== 'orbit') {
       bannerKey = 'orbit'; markDone(F.mission.id); setWarp(1);
-      showBanner('In orbit', `${fmt(d.peri / 1000, 0)} × ${fmt(d.apo / 1000, 0)} km, one lap every ${fmt(d.period / 60, 1)} minutes. Open the map to see it, or read the report.`, 'View flight report', openReport, 'Open map', () => { $('#banner').classList.add('hidden'); if (!mapOn) $('#mapBtn').click(); });
+      showBanner('In orbit', `${fmt(d.peri / 1000, 0)} × ${fmt(d.apo / 1000, 0)} km, one lap every ${fmt(d.period / 60, 1)} minutes. Open the map to see it, or read the report.`, 'View flight report', openReport, mapOn ? null : 'Open map', mapOn ? null : () => { $('#banner').classList.add('hidden'); if (!mapOn) $('#mapBtn').click(); });
     } else if (F.ballistic && o.type === 'altitude' && bannerKey !== 'apogee') {
       bannerKey = 'apogee';
       showBanner(F.reached ? 'Apogee, objective complete' : `Apogee, short of ${o.value / 1000} km`, 'The vehicle is falling back. Keep watching at high time warp, or read the report now.', 'View flight report');
