@@ -8382,7 +8382,7 @@ if (typeof module !== 'undefined') module.exports = { SFX, FX };
 <script>
 // ================= AEROLAB UI (reads simulation state, never computes physics) =================
 const $ = s => document.querySelector(s);
-const fmt = (x, d = 0) => Number.isFinite(x) ? x.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) : '—';
+const fmt = (x, d = 0) => Number.isFinite(x) ? (Math.abs(x) < 0.5 * 10 ** -d ? 0 : x).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) : '—'; // no "-0.0"
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const CAT = [['nose', 'Nose cones'], ['payload', 'Payload'], ['avionics', 'Avionics'], ['tank', 'Propellant tanks'], ['engine', 'Engines'], ['decoupler', 'Staging'], ['fins', 'Fins, on the first stage tail']];
@@ -8836,6 +8836,17 @@ function buildWarp() {
   $('#warp').querySelectorAll('button').forEach(b => b.onclick = () => setWarp(+b.dataset.w));
 }
 function setWarp(w) { warp = w; buildWarp(); }
+// The warp you choose stays chosen; the game only limits what is applied. Under power or in the air the
+// integrator runs every 0.01 s step, so up to 100x; coasting on rails allows the full 10,000x. An ignition
+// or separation slows things to 10x for a moment so short burns are visible. None of this affects the physics.
+let slowUntil = 0;
+const POWERED_WARP_MAX = 100, EVENT_WARP = 10, EVENT_SLOW_MS = 2500;
+function warpNow() {
+  let w = warp;
+  if (F && !F.onRails) w = Math.min(w, POWERED_WARP_MAX);
+  if (performance.now() < slowUntil) w = Math.min(w, EVENT_WARP);
+  return w;
+}
 const programActive = () => F && F.program && (F.program.status === 'running' || F.program.status === 'ready');
 function startFlight() {
   const withProg = useProg && EVAL_OK && checkProgram(prog.code).ok;
@@ -8921,9 +8932,9 @@ function loop(now) {
   if (!running) return;
   const real = Math.min(0.1, (now - lastFrame) / 1000); lastFrame = now;
   if (!F.done && armed) {
-    accum += real * warp; const t0 = performance.now();
+    const wApplied = warpNow(); accum += real * wApplied; const t0 = performance.now();
     while (accum >= 0.01 && !F.done && performance.now() - t0 < 14) { const k = F.advance(0.01); accum -= 0.01 * k; }
-    if (accum > 0.5) accum = 0.5; // the computer could not keep up with this warp; play slower rather than stutter
+    if (accum > 0.02 * wApplied + 0.05) accum = 0.02 * wApplied + 0.05; // could not keep up: play slower rather than stutter
     if (F.done) {
       accum = 0; setWarp(1);
       const impact = !F.failure && F.liftoffT !== null && F.d.alt <= 1 && !F.userEnded;
@@ -8932,7 +8943,7 @@ function loop(now) {
   }
   fxEvents();
   const e = F.veh.eng, running_ = F.throttle > 0 && F.prop > 0 && !F.done;
-  SFX.update({ thrust: running_ && e ? F.d.thrust / e.tvac : 0, air: F.d.p / P0, q: F.done ? 0 : F.d.q, mach: F.d.mach, solid: !!e && e.type === 'solid', warp });
+  SFX.update({ thrust: running_ && e ? F.d.thrust / e.tvac : 0, air: F.d.p / P0, q: F.done ? 0 : F.d.q, mach: F.d.mach, solid: !!e && e.type === 'solid', warp: warpNow() });
   const a = F._aux, caution = !F.done && !F.clamped && armed && (F.d.q > 0.85 * F.veh.qMax || (F.veh.payloads.length && F.sensedG > 0.85 * F.veh.gMax) || (a && F.d.q > 2000 && a.sina * F.d.q > 0.8 * LIMITS.qAlpha));
   if (caution) SFX.alarm();
   if (caution !== cautionOn) { cautionOn = caution; $('#caution').classList.toggle('hidden', !caution); }
@@ -8946,7 +8957,7 @@ function loop(now) {
 function fxEvents() {
   while (fxEv < F.events.length) {
     const m = F.events[fxEv++].msg, air = Math.min(1, F.d.p / P0);
-    if (/ignition$|separation$/i.test(m) && warp > 100) setWarp(10); // slow down so a short burn is visible
+    if (/ignition$|separation$/i.test(m) && warp > EVENT_WARP) slowUntil = performance.now() + EVENT_SLOW_MS; // a short burn stays visible
     if (/ignition$/i.test(m)) SFX.ignition(air);
     else if (/ separation$/.test(m)) { SFX.separation(); pendingSep = true; }
     else if (/cut-off|burnout|depleted/i.test(m)) SFX.cutoff(air);
@@ -9126,7 +9137,7 @@ function drawMap() {
 function renderHud() {
   const d = F.d, tp = F.liftoffT === null ? (F.engine === 'off' ? 0 : F.t - F.ignT) : F.t - F.liftoffT;
   const hh = Math.floor(Math.abs(tp) / 3600), mm = Math.floor(Math.abs(tp) % 3600 / 60), ss = Math.floor(Math.abs(tp) % 60);
-  $('#tplus').textContent = `${F.liftoffT === null ? 'T–' : 'T+'} ${hh ? hh + ':' : ''}${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}${warp > 1 ? `   ${warp.toLocaleString('en-US')}× time` : ''}${F.onRails ? '   coasting on rails' : ''}`;
+  $('#tplus').textContent = `${F.liftoffT === null ? 'T–' : 'T+'} ${hh ? hh + ':' : ''}${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}${warpNow() > 1 || warp > 1 ? `   ${warpNow().toLocaleString('en-US')}× time${warpNow() < warp ? ` (limited, ${warp.toLocaleString('en-US')}× chosen)` : ''}` : ''}${F.onRails ? '   coasting on rails' : ''}`;
   const altKm = Math.max(0, d.alt) / 1000;
   $('#hAlt').innerHTML = `${fmt(altKm, altKm >= 100 ? 1 : 2)}<small>km</small>`;
   const aoa = Math.asin(Math.min(1, F._aux ? F._aux.sina : 0)) / DEG;
