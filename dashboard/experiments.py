@@ -74,8 +74,12 @@ def legacy_digest(result: dict) -> str:
 
 # ---------- code version ----------
 def code_version() -> dict:
+    fc = runner.CORE.parent / "flight_computer.js"
+    acorn = runner.CORE.parent.parent / "vendor" / "acorn.js"
     info = {"coreSha256": sha256(runner.CORE.read_bytes()),
             "runnerSha256": sha256(runner.RUNNER.read_bytes()),
+            # flight programs also depend on the flight computer and its parser (since V0.2)
+            "flightComputerSha256": sha256(fc.read_bytes() + acorn.read_bytes()) if fc.exists() else None,
             "gitCommit": None, "gitTag": None, "gitDirty": None}
     try:
         def git(*a):
@@ -195,6 +199,8 @@ def reproduce(manifest: dict) -> dict:
                      "outcome_recorded": entry["outcome"],
                      "success_now": s["success"]})
     code_changed = now_code["coreSha256"] != manifest["code"]["coreSha256"]
+    if manifest["code"].get("flightComputerSha256") is not None:  # absent in manifests before V0.2
+        code_changed = code_changed or now_code["flightComputerSha256"] != manifest["code"]["flightComputerSha256"]
     model_changed = now_model != manifest["model"]
     verdict = ("reproduced exactly" if counts["identical"] == len(rows) else
                "reproduced within tolerance" if counts["different"] == 0 else "not reproduced")

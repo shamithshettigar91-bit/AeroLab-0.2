@@ -67,7 +67,8 @@ if rep and rep[0] == m["experimentId"]:
     {"reproduced exactly": st.success, "reproduced within tolerance": st.info}.get(r["verdict"], st.error)(msg)
     if r["codeChanged"]:
         st.warning("The simulation core has changed since this experiment was recorded, so differences can be expected. "
-                   f"Recorded core {code['coreSha256'][:12]}, current core {r['codeNow']['coreSha256'][:12]}.")
+                   f"Recorded core {code['coreSha256'][:12]}, current core {r['codeNow']['coreSha256'][:12]}."
+                   + (f" Flight computer recorded {code['flightComputerSha256'][:12]}, now {r['codeNow']['flightComputerSha256'][:12]}." if code.get('flightComputerSha256') else ""))
     if r["modelChanged"]:
         st.warning(f"The physics model version changed: recorded {m['model']}, now {r['modelNow']}.")
     df = pd.DataFrame(r["rows"])

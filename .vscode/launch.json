@@ -6,7 +6,12 @@
       "type": "debugpy",
       "request": "launch",
       "module": "streamlit",
-      "args": ["run", "dashboard/Home.py", "--server.runOnSave", "true"],
+      "args": [
+        "run",
+        "dashboard/Home.py",
+        "--server.runOnSave",
+        "true"
+      ],
       "cwd": "${workspaceFolder}",
       "justMyCode": true
     },

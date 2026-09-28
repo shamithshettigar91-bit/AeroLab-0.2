@@ -1,6 +1,6 @@
 # AeroLab: project report
 
-Status as of 27 September 2026. Version V0.1.1: the V0.1 playable build, a Streamlit dashboard, Git version control and reproducible experiment manifests.
+Status as of 28 September 2026. Version V0.2: multi-stage rockets with stage separation, a programmable flight computer, orbit, six missions, the Streamlit research dashboard, Git version control and reproducible experiments. Section 17 describes everything V0.2 added.
 
 Attach this file at the start of any future session so work can continue from exactly this point. Section 14 has a ready-made message to paste.
 
@@ -18,6 +18,8 @@ What exists today is the V0.1 slice from that plan. It is a browser prototype, b
 
 **Mission 002:** carry a 10 kg science payload above 100 km (the Kármán line) with one stage and one engine.
 
+V0.2 extends the slice to orbit. Rockets can have any number of stages. Players can write a JavaScript flight program that flies the whole mission by itself, and six missions run from 10 km to a circular orbit flown with no manual input.
+
 ---
 
 ## 2. Timeline of work so far
@@ -32,6 +34,7 @@ What exists today is the V0.1 slice from that plan. It is a browser prototype, b
 | 6. This report | Written as the hand-off for future sessions. |
 | 7. External review | An outside review rated the concept highly and confirmed the architecture. Accepted: scope discipline, LLM kept out of control loops, AI never modifies physics directly, reproducibility before more AI. Adjusted: seeds only matter once uncertainty models exist; Unity port should be checked against golden reference results; reinforcement learning needs a faster step-by-step bridge; V0.2 orbit is equatorial only (section 15). |
 | 8. Git and experiments (V0.1.1) | Put the project under Git and tagged `v0.1`. Added experiment manifests, an Experiments page, a terminal reproduce tool, 10 reproducibility tests and a committed regression baseline (section 16). |
+| 9. V0.2: staging, flight computer, orbit | AeroModel 0.2 with stage separation, relightable engines, reaction wheels and orbital elements. A flight computer runs player programs deterministically. Six missions, three reference rockets, six example programs. Build/Program/Fly interface with a to-scale map view. Dashboard support for programs and a program-constant sweep. A new baseline was recorded, and the V0.1 baseline still reproduces bit for bit (section 17). |
 
 Published game (claude.ai artifact): https://claude.ai/artifact/PccpSrP7zJHSB2DwXRLKbT
 
@@ -55,6 +58,8 @@ Floating origin (point 6 of the original review) is not needed in the browser pr
 ---
 
 ## 4. Project structure
+
+*V0.2 added `src/flight_computer.js`, `src/programs.js`, `vendor/acorn.js`, `docs/PROGRAMMING_GUIDE.md` and a second baseline; the README has the current tree.*
 
 ```
 aerolab-v01/
@@ -280,13 +285,39 @@ Each result holds `analysis`, `report`, `success`, `apogee`, `max`, `loss`, `fai
 
 ## 10. Tests
 
-`npm test` runs everything: the 20 core tests, the 10 reproducibility tests and a reproduction of every saved experiment. Each can also run on its own (`node tests/flight-tests.js`, `python tests/test_experiments.py`, `python tools/reproduce.py --all`). All 30 tests pass and the baseline reproduces exactly.
+`npm test` runs everything: the 76 core tests, the 10 reproducibility tests and a reproduction of every saved experiment. Each can also run on its own (`node tests/flight-tests.js`, `python tests/test_experiments.py`, `python tools/reproduce.py --all`). All 86 tests pass and both baselines reproduce exactly.
 
 Core tests (`tests/flight-tests.js`):
 
 - Atmosphere: sea-level density, 11 km pressure and temperature, sea-level speed of sound, against US76 values.
 - Analysis: validity, mass sum (520 kg), rocket equation, stable with fins, unstable without, and three validation errors.
 - Flights: the eight scenarios marked in section 7.
+- *(V0.2)* Staging analysis and validation (10 tests):
+  - per-stage rocket equation;
+  - total ΔV as the sum of the stages;
+  - the reference designs are valid;
+  - the rules for the computer, payload, decoupler, engine and tank placement.
+- *(V0.2)* Separation physics (9 tests):
+  - refused on the pad;
+  - mass split exactly between the stages;
+  - momentum conserved to 1 part in 10⁹;
+  - the stages move apart;
+  - the upper stage starts fresh;
+  - the fins leave with stage 1;
+  - recontact when separating while firing, and its report;
+  - the Kestrel allows exactly 3 ignitions.
+- *(V0.2)* Orbital elements against analytic orbits (6 tests).
+- *(V0.2)* Flight computer (12 tests):
+  - compile errors and their line numbers;
+  - runtime error line;
+  - the vehicle survives a program crash;
+  - an infinite loop is halted;
+  - hidden globals;
+  - seeded randomness;
+  - wait timing;
+  - yield forms.
+- *(V0.2)* Every example program completes its mission on its reference rocket (9 flights, including M004–M006 orbits). Also: the Heron survives max Q under the throttle program; M005's orbit is within its band; the spent stage is tracked to impact; programmed flights are deterministic.
+- *(V0.2)* Mission rules and failure analysis (6 tests): an unlit stage 2, a manual input in the hands-off mission, skipping circularisation, and the orbit ΔV budget.
 
 Reproducibility tests (`tests/test_experiments.py`): manifest schema and ID, recorded outcomes, core hash, save, refusal to overwrite, load round-trip, exact reproduction, no false code-change warning, a changed result is caught, a tiny difference counts as within tolerance.
 
@@ -306,12 +337,22 @@ Physics simplifications (deliberate for V0.1):
 
 Interface issues worth fixing:
 - Ignition and lift-off both show T+0.0 in the in-game event log, because events are labelled only once lift-off time is known. The Flight Lab event log shows the correct −0.2 s.
-- `keys` in `ui.js` is declared but unused.
 - In Streamlit, the player must click inside the game before it receives key presses.
 - Saved designs live in browser local storage, so designs saved in the standalone `index.html` and in the Streamlit Play page are separate.
 - Fonts need an internet connection; without it the system fallback is used.
 - The published artifact and the zip may drift apart if one is updated without the other.
 - The Experiments page lists the baseline first because of alphabetical sorting.
+
+New with V0.2:
+- **Every stage has the same 0.6 m diameter**, so the Orbiter is 23 m tall and very slender. Orbit needs about 9 km/s, which forces long stacks. Parts with different diameters would make orbital rockets look and fly more realistically.
+- **There is no analytic "on rails" coasting.** Every second is integrated with RK4, so time warp stops at 100×, where one orbit takes about 53 real seconds. The plan's Kepler propagation for coasts is still to do.
+- **Reaction wheels never saturate** and cost no power, and there is no RCS. Turning while coasting is therefore free.
+- **Debris does not collide with the vehicle after separation.** Recontact is judged only at the moment of separation.
+- **Runner flights with a program or mission stop 2 s after the outcome is known.** Their "apogee" is then the highest point so far, not the true apogee. For example, the Twin records 505.4 km in the baseline, but its full apogee is about 950 km.
+- **A re-entry break-up is labelled by its failure kind.** In sweep tables it shows as, for example, "Failed: tumble", while the report's cause correctly says the vehicle did not reach orbit.
+- **The published artifact page may block player code.** A published page's security settings may forbid running code built at runtime. The game detects this and says so on the Program tab. The local `index.html` and the Streamlit Play page are unaffected.
+- **Streamlit 1.64 warns about deprecated calls**: `use_container_width` and `st.components.v1.html`. They still work. Replace them with `width="stretch"` and `st.iframe` when the minimum Streamlit version is raised.
+- **Flight programs are guarded for determinism, not security.** Deliberately hostile code could still reach browser globals through tricks. Run programs you trust.
 
 Found with the new reproducibility tool:
 - **Solid-motor results are highly sensitive to the fixed thrust misalignment.** Changing it from 0.15° to 0.16° moved "Solid, large fins" from 120.8 to 106.4 km and "Solid, small fins" from 67.5 to 52.3 km, while the liquid designs, which attitude hold corrects, moved by centimetres. The solid-motor lesson therefore depends on an arbitrary constant. This is the first strong candidate for a Monte Carlo study once uncertainty models exist, and a reason to treat the solid-motor outcomes as indicative rather than precise.
@@ -320,19 +361,25 @@ Found with the new reproducibility tool:
 
 ## 12. Roadmap: what comes next
 
-Done since V0.1: Git with tag `v0.1`, and experiment manifests with reproduction (the review's "Experiment 3").
+Done since V0.1: Git with tags `v0.1`, `v0.1.1` and `v0.2`; experiment manifests with reproduction (the review's "Experiment 3"); V0.2 staging, orbit, missions 001 to 006 and the flight computer (section 17).
 
 From the original plan's order, the next stages are:
 
-1. **V0.2, staging.** Multiple engines and stages, stage separation (shutdown, detach, separation impulse, remove mass, ignite next), per-stage ΔV and TWR, interstage parts, a staging key.
-2. **Orbit (plan phase 6).** Periapsis, eccentricity, orbital period; a map view; switching to analytic Kepler propagation during unpowered coasts for high time warp; Mission 003, 200 km orbit.
-3. **Missions (plan phase 7).** Mission list, objectives, constraints and rewards as data; missions 001 to 006.
+1. **Done in V0.2:** staging, orbit (equatorial), the map view, missions 001 to 006 as data, and the flight computer.
+2. **V0.3, orbit operations.** Analytic Kepler propagation for coasts, so time warp can reach 1,000× and beyond. Orbit-change missions such as raising to 400 km or a Hohmann transfer, which the Kestrel's three ignitions already allow. De-orbit and re-entry heating.
+3. **Parts with different diameters,** with interstage adapters. Aerodynamics would then use the widest part, and the first stage could be wider.
 4. **Recovery.** Parachutes, landing legs, a descent and landing check.
 5. **Research features.** Monte Carlo with uncertainty models, experiment objects storing seed, versions and parameters, reproducible reruns. The dashboard's sweep page is the foundation.
 6. **Unity port.** Move `core.js` to C# in a no-engine assembly, parts to ScriptableObjects, the builder and flight view to Unity scenes, and add a floating origin. The flight tests become Unity EditMode tests with the same expected results.
 7. **Later:** spacecraft systems (power, thermal, communication, electric propulsion), Moon and Mars, rovers, cognitive NPC mission team, AI assistants.
 
-Smaller improvements that fit any time: reaction control thrusters for steering without thrust, wind, parts with different diameters, a telemetry CSV download inside the game, fixing the issues in section 11.
+Smaller improvements that fit any time:
+- reaction control thrusters and wheel saturation;
+- wind;
+- a telemetry CSV download inside the game;
+- syntax highlighting and autocomplete in the program editor;
+- a program library shared between the game and the dashboard;
+- fixing the issues in section 11.
 
 ---
 
@@ -343,6 +390,8 @@ Smaller improvements that fit any time: reaction control thrusters for steering 
 | V0.1 | 27 Sep 2026 | First playable build: builder, flight, report. Simulation core AeroModel 0.1. 13 parts. Mission 002. |
 | V0.1 + dashboard | 27 Sep 2026 | Streamlit dashboard (Play, Flight Lab, Parameter Sweep), Node bridge, VS Code configs, 900 px layout breakpoint, theme injection. |
 | V0.1.1 | 27 Sep 2026 | Git repository, tag `v0.1`. Experiment manifests (schema `aerolab.experiment/1`), Save experiment on the sweep page, Experiments page with reproduce, `tools/reproduce.py`, `tools/record_baseline.py`, committed baseline `EXP-BASELINE-AeroModel-0.1`, 10 reproducibility tests. Physics unchanged (still AeroModel 0.1). |
+
+| V0.2 | 28 Sep 2026 | **AeroModel 0.2** (physics).<br>• Stage decouplers and momentum-conserving separation, spent stages tracked to impact, recontact failure.<br>• Engine ignition counts and relights; reaction wheels; attitude modes for pitch, surface prograde, orbital prograde and retrograde.<br>• Orbital elements; the failure window changed from "until apogee" to "until ballistic", identical for V0.1 designs.<br>• 6 new parts: Condor, Kestrel, carbon tanks C3 and C5, reaction wheels, decoupler.<br>**Flight computer** (`flight_computer.js`): generator programs at 20 Hz, Acorn loop guards, seeded `Math.random`, hidden globals, error lines, and a `ship` API with 10 commands and 45 readings.<br>**Content:** missions M001–M006 as data; reference rockets Sounder, Twin and Orbiter; 6 example programs.<br>**Interface:** Build and Program tabs, stage-aware builder with a per-stage table, code editor, instant test flight, staging and program control in flight, to-scale map view, staging timeline in the report, warp up to 100×.<br>**Dashboard:** multi-stage stack editor, program control, program-constant sweep, legacy digest for pre-V0.2 manifests.<br>**Tests and baselines:** 76 core tests; baseline `EXP-BASELINE-AeroModel-0.2` (19 cases). The V0.1 baseline still reproduces bit for bit. |
 
 Add a row here for every future update.
 
@@ -355,10 +404,11 @@ Attach this file (and the project zip if you want code changes made directly), t
 > This is my AeroLab project. The attached PROJECT_REPORT.md describes everything built so far: the architecture, the simulation core, the parts, the tested balance, the game interface, the Streamlit dashboard and the roadmap. Keep the design decisions in section 3. Next I want to: **[describe the update, for example "add staging for V0.2"]**. Update the code, keep the tests passing (add tests for new behaviour), and update this report's change log.
 
 Working rules to keep:
-- Physics changes go only in `src/core.js`; the interface and dashboard read state and never compute physics.
+- Physics changes go only in `src/core.js`; the interface and dashboard read state and never compute physics. The flight computer (`src/flight_computer.js`) may only call the same `Flight` methods as the pilot's controls.
+- Reference rockets and example programs live in `src/programs.js`. Every example must stay covered by a test in `tests/flight-tests.js`.
 - New parts are data entries in `PARTS`.
 - SI units internally; conversion only for display.
-- Rebuild with `python3 tools/build.py` and run `node tests/flight-tests.js` after every change.
+- Rebuild with `python3 tools/build.py` and run `npm test` after every change. The build refuses files with syntax errors.
 - Bump the `MODEL` version string whenever the physics changes, so old results stay traceable.
 - After any physics change, run `python tools/reproduce.py --all`. If the change was intended, commit it, bump the model version and run `python tools/record_baseline.py` to record a new baseline. Keep the old baseline file.
 - Commit before recording experiments, so each manifest points at a clean Git commit.
@@ -393,3 +443,75 @@ An outside review of the project (September 2026) was assessed. Decisions:
 **Cross-machine note:** results should be bit-identical on the same Node version. V8's maths functions are consistent across platforms, but a different Node major version could in principle change the last digits, which is what the tolerance level is for.
 
 **Baseline:** `experiments/EXP-BASELINE-AeroModel-0.1.json` holds the eleven learning-path designs from section 7, recorded from clean commit `45fc52c`.
+
+
+---
+
+## 17. V0.2: staging, flight computer and orbit
+
+### 17.1 What the player does
+
+1. Pick a mission from the top-right menu.
+2. Build a rocket on the Build tab, or load a reference rocket.
+3. Write or load a flight program on the Program tab, and check it with **Test flight**, which flies the whole mission instantly.
+4. Watch the flight, or fly manually.
+5. Read the report.
+
+A mission can be completed by hand or by program, except M006, which forbids manual input.
+
+### 17.2 Design decisions
+
+| Decision | Why |
+| --- | --- |
+| Stages are defined by decouplers in the one stack, not a separate stage editor | The V0.1 stack UI carries over. A design stays one list of part ids, so saves, experiments and the dashboard needed no new format. |
+| The decoupler and the fins leave with the lower stage | This matches real interstages and keeps the rule simple: everything below the lowest decoupler goes. |
+| Separation never lights the next engine | Real vehicles sequence these separately. Forgetting to ignite is a lesson in its own right, and the report names it. |
+| Recontact if the lower stage is still firing | This is the most common staging mistake. It is detected at the one moment it can happen, with no collision model needed. |
+| Programs are generators with `yield` | Sequential code reads like a flight plan (wait until burnout, stage, ignite), yet runs deterministically inside fixed simulation ticks. No threads or timers are involved. |
+| 20 Hz program rate, before the physics step | This is a realistic flight-computer rate. Commands take effect in the same step, so results do not depend on frame rate or warp. |
+| Acorn guards instead of a Web Worker | A worker could be killed on a hang, but would make the sim asynchronous and harder to reproduce. Inserted guards halt runaway loops synchronously, and they keep line numbers, so errors point at the right line. |
+| Seeded `Math.random`, hidden `Date` and timers | Programs must produce identical flights everywhere, or experiments lose their meaning. |
+| V0.1 arithmetic preserved exactly | The new features only add terms when they are active, such as wheel torque, which is zero for V0.1 designs. The V0.1 learning path and its baseline therefore stay valid, and old experiments still reproduce bit for bit. |
+
+### 17.3 Balance: tested outcomes (AeroModel 0.2)
+
+The 11 V0.1 cases in section 7 are unchanged. The new baseline adds these eight:
+
+| Case | Outcome |
+| --- | --- |
+| Twin, staging program (M003) | Success. Separates at about 35 km (q ≈ 6 kPa); apogee about 950 km |
+| Twin, stage 2 never lit | Tumble, just after separation at 37 km |
+| Twin, separated 20 s into the burn | Recontact at 2.4 km |
+| Orbiter, coast and circularise (M004, M005) | Success, 193.1 × 200.3 km orbit, 29 kg left in stage 2 (about 600 m/s) |
+| Orbiter, direct insertion (M005) | Success, about 190 × 197 km |
+| Orbiter, no circularisation (M004) | Falls back; break-up on re-entry, reported as not reaching orbit |
+| Sounder, hello program (M002) | Success, same trajectory as the manual flight (134.5 km apogee) |
+
+Reference rockets:
+
+| Rocket | Stage 1 | Stage 2 | Total ΔV (vacuum) | Lift-off TWR |
+| --- | --- | --- | --- | --- |
+| Sounder | Sparrow, tank M, small fins | — | 2,814 m/s | 2.75 |
+| Twin | Heron, 2 × tank L, small fins | Sparrow, tank M | about 5,190 m/s | 2.04 |
+| Orbiter | Condor, C5 + C5 + C3, small fins | Kestrel, C5, reaction wheels | 9,567 m/s (3,059 + 6,507) | 1.70 (stage 2: 1.16 in vacuum) |
+
+### 17.4 Findings while balancing
+
+- **Orbital prograde is the wrong pointing in the atmosphere.** Right after separation at 40–50 km, holding orbital prograde turned the finless upper stage several degrees off the airflow, because the air moves with Earth at about 465 m/s. The stage tumbled every time. Switching to surface prograde fixed it. The finding is built into the examples and the programming guide.
+- **Separation altitude matters.** A Twin variant with less first-stage propellant separates at 28 km (q ≈ 16 kPa). It survives with small fins on stage 1 but breaks up with large ones.
+- **A low-thrust upper stage makes coast-and-circularise inefficient** unless the turn is shallow. At 9.5 kN the Kestrel wasted too much ΔV to gravity. It was raised to 12 kN, a realistic value for a 30 kg vacuum engine.
+- **The gravity-turn end pitch has a wide working band.** Sweeping `END_PITCH` from 10° to 50° on the Orbiter (M004):
+  - 20° to 45° reaches orbit; 20° to 30° gives near-circular orbits;
+  - 10° to 15° is too flat, reaching only 77–109 km periapsis;
+  - 50° is too steep, with periapsis at −40 km.
+- **Guidance quality matters but is not a knife-edge.** In a grid of 72 guidance variants on the Orbiter, 26 reached the M005 circular band.
+
+### 17.5 New and changed files
+
+- `src/flight_computer.js`: program compilation, guards and the `ship` API.
+- `src/programs.js`: reference rockets and example programs.
+- `vendor/acorn.js`: parser, MIT licence in `vendor/ACORN-LICENSE.txt`.
+- `docs/PROGRAMMING_GUIDE.md`: how to write flight programs.
+- `experiments/EXP-BASELINE-AeroModel-0.2.json`: the new baseline.
+- `tools/run_flight.js`: new run options `mission`, `program` and `seed`, and new `catalog` and `check` commands.
+- `dashboard/experiments.py`: `legacy_digest` for manifests recorded before V0.2.

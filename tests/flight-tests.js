@@ -161,7 +161,7 @@ check('syntax error reports its line', FC.checkProgram('function* flight(ship) {
 }
 
 console.log('\nExample programs fly their reference rockets');
-const cases = [['hello', 'sounder', 'M002'], ['maxq', 'sounder', 'M002'], ['staging', 'twin', 'M003'],
+const cases = [['hello', 'sounder', 'M002'], ['blank', 'sounder', 'M002'], ['maxq', 'sounder', 'M002'], ['staging', 'twin', 'M003'],
   ['orbit', 'orbiter', 'M004'], ['orbit', 'orbiter', 'M005'], ['orbit', 'orbiter', 'M006'], ['orbit_eta', 'orbiter', 'M004'], ['orbit_eta', 'orbiter', 'M005']];
 const results = {};
 for (const [id, d, m] of cases) {

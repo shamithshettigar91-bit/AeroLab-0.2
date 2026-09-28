@@ -32,6 +32,19 @@
       "problemMatcher": []
     },
     {
+      "label": "AeroLab: run all tests and reproduce baselines",
+      "type": "shell",
+      "command": "npm test",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "AeroLab: open game in browser",
+      "type": "shell",
+      "command": "python -c \"import webbrowser, pathlib; webbrowser.open(pathlib.Path('index.html').resolve().as_uri())\"",
+      "problemMatcher": []
+    },
+    {
       "label": "AeroLab: test experiments (Python)",
       "type": "shell",
       "command": "python tests/test_experiments.py",

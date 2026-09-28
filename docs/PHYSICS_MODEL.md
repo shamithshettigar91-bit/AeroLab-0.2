@@ -1,6 +1,8 @@
-# AeroLab physics model, V0.1
+# AeroLab physics model, V0.2
 
-Model identifiers: AeroModel 0.1, US76-lite 1.0, PointMass 1.0, RK4 at 100 Hz.
+Model identifiers: AeroModel 0.2, US76-lite 1.0, PointMass 1.0, RK4 at 100 Hz, Impulse 1.0 (staging), FlightComputer 1.0 at 20 Hz.
+
+AeroModel 0.2 adds staging, reaction wheels, engine restarts, orbital elements and the flight computer. It is a strict extension of 0.1. Every calculation 0.1 made is still made the same way, in the same order, so a V0.1 design flies bit-for-bit identically; the committed V0.1 baseline proves it (`python tools/reproduce.py --all`). The new sections are marked *(0.2)*.
 
 ## Frame and state
 
@@ -32,6 +34,8 @@ Liquid engines throttle between 40% and 100% and gimbal a few degrees. Solid mot
 
 Engine states: off, ignition (0.6 s thrust ramp), running, shutdown, burnout.
 
+*(0.2)* Each liquid engine has a number of ignitions: one for the Sparrow, Heron and Condor, three for the Kestrel vacuum engine. A shut-down engine with ignitions left can be relit. A burned-out engine cannot. The Kestrel's low sea-level Isp (170 s against 345 s in vacuum) models a large nozzle built for vacuum.
+
 ## Aerodynamics
 
 Dynamic pressure: q = ½ ρ v_air².
@@ -50,9 +54,35 @@ Pitch damping torque is proportional to q · A · L² · ω / v, with a coeffici
 
 ## Attitude hold
 
-A PID controller commands the gimbal to hold a target pitch above the horizon. It includes a feed-forward term that cancels the predicted aerodynamic torque. The gimbal is rate-limited to 20°/s. With no thrust there is no steering, because V0.1 has no reaction control thrusters.
+A PID controller computes the torque needed to hold a target attitude. It includes a feed-forward term that cancels the predicted aerodynamic torque. The gimbal is rate-limited to 20°/s.
 
-## Failure criteria (checked until apogee)
+*(0.2)* The target can be:
+
+- a pitch angle above the local horizon, heading east;
+- surface prograde: along the air-relative velocity, which is zero angle of attack;
+- orbital prograde or retrograde: along or against the inertial velocity.
+
+Near the pad the air-relative and inertial velocities differ by Earth's rotation, about 465 m/s eastward. So orbital prograde can be several degrees off the airflow while the vehicle is still in the atmosphere.
+
+*(0.2)* Reaction wheels supply up to their rated torque (400 N·m per unit) directly about the centre of gravity, with or without thrust. The controller uses the wheels first and gives the remainder to the gimbal. Wheels are not modelled as saturating. Without wheels, a coasting stage cannot turn.
+
+## Staging *(0.2)*
+
+Decouplers split the stack into stages. Everything below the lowest decoupler, including the decoupler itself and the fins, is stage 1 and fires first. Only the current bottom stage's engine can run, fed by the tanks in its own stage. Upper-stage propellant is carried as full, fixed mass until that stage becomes active.
+
+At separation:
+
+1. The stack is cut at the lowest decoupler. The upper stage's mass m_u and centre of gravity come from its own parts. The lower stage's mass is m_l = m − m_u, and its centre of gravity follows from the moment balance about the nose.
+2. Each body's position moves to its own centre of gravity along the body axis.
+3. The decoupler's spring impulse J (600 N·s) acts along the body axis: Δv_u = +J / m_u, Δv_l = −J / m_l. Total momentum is conserved exactly (tested).
+4. The upper stage's engine starts in the off state with its full number of ignitions. Separation never lights it; the pilot or program must.
+5. If the lower stage's engine was producing thrust at the moment of separation, the flight fails with *recontact*: a still-thrusting stage accelerates into the one above.
+
+A spent stage becomes debris: a tumbling point mass with gravity and drag (Cd·A = 1.1 A + 0.02 L d) integrated with RK4 at the same step until it reaches the ground, where its impact point is logged. Debris does not interact with the vehicle.
+
+Separation is refused while the vehicle is still on the pad.
+
+## Failure criteria
 
 | Failure | Criterion |
 | --- | --- |
@@ -61,20 +91,57 @@ A PID controller commands the gimbal to hold a target pitch above the horizon. I
 | Loss of control | α above about 44° while q above 500 Pa |
 | Payload overload | Sensed acceleration above the payload's g limit |
 | Insufficient thrust | Still on the pad 4 s after ignition |
+| Recontact *(0.2)* | Separation while the lower stage is thrusting |
+
+*(0.2)* Failures are checked until the vehicle is **ballistic**: past its first apogee, descending, and with no engine running, no engine it can still ignite, and no stage left to separate. In V0.1 every vehicle was ballistic at apogee, so this reproduces the V0.1 rule exactly. A multi-stage vehicle that coasts to apoapsis before its next burn is still checked. The flight report treats a break-up while falling back as a symptom and reports the underlying problem, such as not reaching orbit.
 
 ## Losses reported in the flight report
 
 - Gravity loss: ∫ g · (v̂ · r̂) dt while the engine runs.
-- Drag loss: ∫ D / m dt until apogee.
+- Drag loss: ∫ D / m dt until the vehicle is ballistic.
 
-## Predicted apogee
+## Orbital elements
 
-Computed from specific orbital energy and angular momentum: r_a = a (1 + e). This assumes vacuum, so it overestimates while the vehicle is still in the atmosphere.
+Computed every step from the inertial state, assuming vacuum and a point-mass Earth:
+
+- specific energy ε = v² / 2 − μ / r; semi-major axis a = −μ / (2ε);
+- angular momentum h = x v_y − y v_x; eccentricity e = √(1 + 2 ε h² / μ²);
+- apoapsis a (1 + e) − R and periapsis a (1 − e) − R, as altitudes;
+- period 2π √(a³ / μ);
+- time to apoapsis from the mean anomaly: E = atan2(r·v / √(μ a), 1 − r / a), M = E − e sin E.
+
+An unbound path (ε ≥ 0) has an infinite apoapsis. While the vehicle is in the atmosphere these values ignore drag, so apoapsis is overestimated. Above about 140 km the modelled density is so low that an orbit stays unchanged for the length of a mission.
+
+A mission's orbit objective is met when the engine is off, the vehicle is above 100 km, and the periapsis (and, if the mission sets one, the apoapsis) is inside the band.
+
+## Flight computer *(0.2)*
+
+A flight program is a JavaScript generator run by `src/flight_computer.js`. The simulation advances it once every 5 steps (20 Hz), before that step's physics, so its commands act immediately. `yield ship.wait(s)` resumes on the first tick at or after the requested time. `yield ship.until(f)` evaluates `f` each tick.
+
+For determinism:
+
+- the program's `Math.random` is a seeded Mulberry32 generator;
+- clocks, timers, the page and the network are hidden;
+- each tick has a budget of 200,000 loop iterations and function calls. Guard calls are inserted by parsing the program with Acorn, and the insertion does not change line numbers.
+
+A program error or budget overrun halts the program. The vehicle keeps its last commands. Commands go through the same methods as the pilot's controls.
 
 ## Known simplifications
 
-The vehicle is rigid, with a single diameter and a single stage. Flight is planar, with no yaw or roll. There is no wind. Tanks drain proportionally. There is no heating model and no aerodynamic hysteresis. The numbers teach the right trends but are not engineering-grade predictions.
+The vehicle is rigid, with a single diameter (0.6 m) for every stage. Separation is instantaneous apart from the spring push, and stages cannot collide after separating. Flight is planar, with no yaw or roll. Earth is a sphere with point-mass gravity (no J2). There is no wind. Tanks drain proportionally. Reaction wheels never saturate. There is no heating model and no aerodynamic hysteresis. The numbers teach the right trends but are not engineering-grade predictions.
 
 ## Validation
 
-`tests/flight-tests.js` checks the atmosphere against US76 reference values, mass and the rocket equation, validation rules, and eight flight scenarios whose outcomes should not change unless the model changes on purpose.
+`tests/flight-tests.js` (76 tests) checks:
+
+- the atmosphere against US76 reference values;
+- mass and the rocket equation, per stage;
+- validation rules;
+- momentum conservation at separation;
+- orbital elements against analytic circular and elliptical orbits;
+- the flight computer's error lines, loop guard, hidden globals and seeded randomness;
+- every example program on its reference rocket;
+- determinism of repeated programmed flights;
+- the failure analysis for classic mistakes.
+
+The baselines in `experiments/` pin the outcomes of 19 reference flights.
