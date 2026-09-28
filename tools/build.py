@@ -16,6 +16,7 @@ parts = {
     "/*__CORE__*/": src / "core.js",
     "/*__FC__*/": src / "flight_computer.js",
     "/*__PROGRAMS__*/": src / "programs.js",
+    "/*__FX__*/": src / "effects.js",
     "/*__UI__*/": src / "ui.js",
 }
 # Syntax-check every source with Node first, so a typo never reaches the page.

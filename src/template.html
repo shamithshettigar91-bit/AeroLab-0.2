@@ -191,6 +191,10 @@ kbd{font-family:var(--font);font-size:12px;border:1px solid rgba(255,255,255,.35
 @media (prefers-reduced-motion: reduce){ *{scroll-behavior:auto!important} }
 
 /* V0.2 additions */
+.caution{display:inline-block;margin:0 0 8px;padding:4px 10px;border-radius:6px;background:#EE6A55;color:#fff;font-family:var(--cond);font-weight:600;font-size:15px;letter-spacing:.02em;animation:blink 1s steps(2,start) infinite}
+.caution.hidden{display:none}
+@keyframes blink{to{visibility:hidden}}
+@media (prefers-reduced-motion: reduce){.caution{animation:none}}
 .linkbtn{background:none;border:0;padding:0;font:inherit;color:var(--accent);text-decoration:underline;text-underline-offset:2px;cursor:pointer}
 .linkbtn:hover{color:var(--text)}
 #app{display:flex;flex-direction:column;height:100vh}
@@ -363,6 +367,7 @@ kbd{font-family:var(--font);font-size:12px;border:1px solid rgba(255,255,255,.35
   <div class="hud hud-l">
     <div class="tplus" id="tplus">T– 00:00</div>
     <div class="alt" id="hAlt">0.00<small>km</small></div>
+    <div class="caution hidden" id="caution" role="alert">Master caution: near the structural limit</div>
     <div class="readouts" id="readouts"></div>
   </div>
   <div class="hud objective" id="objective"><span class="flag"></span><span id="objText"></span></div>
@@ -386,8 +391,9 @@ kbd{font-family:var(--font);font-size:12px;border:1px solid rgba(255,255,255,.35
     <button class="btn hidden" id="takeBtn">Take manual control</button>
     <div class="warp" id="warp" role="group" aria-label="Time warp"></div>
     <button class="btn" id="mapBtn">Map</button>
+    <button class="btn" id="soundBtn" aria-pressed="true">Sound on</button>
     <button class="btn" id="endBtn">End flight</button>
-    <span class="keys"><kbd>Space</kbd> ignite <kbd>G</kbd> stage <kbd>W</kbd><kbd>S</kbd> throttle <kbd>A</kbd><kbd>D</kbd> pitch <kbd>M</kbd> map <kbd>,</kbd><kbd>.</kbd> warp <kbd>Esc</kbd> end</span>
+    <span class="keys"><kbd>Space</kbd> ignite <kbd>G</kbd> stage <kbd>W</kbd><kbd>S</kbd> throttle <kbd>A</kbd><kbd>D</kbd> pitch <kbd>M</kbd> map <kbd>N</kbd> sound <kbd>,</kbd><kbd>.</kbd> warp <kbd>Esc</kbd> end</span>
   </div>
 </div>
 
@@ -418,6 +424,9 @@ kbd{font-family:var(--font);font-size:12px;border:1px solid rgba(255,255,255,.35
 </script>
 <script>
 /*__PROGRAMS__*/
+</script>
+<script>
+/*__FX__*/
 </script>
 <script>
 /*__UI__*/

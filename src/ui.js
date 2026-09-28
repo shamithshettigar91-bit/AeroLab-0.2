@@ -446,6 +446,7 @@ function drawMiniTraj(cv, f) {
 // ---------- Flight ----------
 let F = null, fAn = null, warp = 1, lastFrame = 0, accum = 0, hudTick = 0, logCount = 0, particles = [], stars = [], boom = null, reportShown = false, running = false;
 let armed = true, mapOn = false, mapZoom = 1, bannerKey = '', reportFrom = 'build';
+let fxEv = 0, pendingSep = false, cautionOn = false; // effects bookkeeping (presentation only)
 const WARPS = [1, 2, 5, 10, 25, 50, 100];
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 function buildWarp() {
@@ -459,6 +460,7 @@ function startFlight() {
   if (useProg && !withProg) { showScreen('program'); checkUI(); flash('Fix the flight program, or turn off "Fly with this program".'); return; }
   F = new Flight(design, { program: withProg ? prog.code : null, mission: missionId }); fAn = analyze(design, missionId);
   warp = 1; accum = 0; logCount = 0; boom = null; reportShown = false; bannerKey = ''; mapOn = false; mapZoom = 1; armed = !withProg;
+  fxEv = 0; pendingSep = false; FX.clear(); SFX.unlock(); syncSoundBtn();
   $('#log').innerHTML = ''; $('#banner').classList.add('hidden'); $('#modal').classList.add('hidden'); $('#mapcv').classList.add('hidden');
   $('#app').classList.add('hidden'); $('#flight').classList.remove('hidden');
   $('#thr').value = 100; $('#thrVal').textContent = '100%'; $('#attSel').value = F.sas ? 'pitch' : 'off';
@@ -508,6 +510,7 @@ $('#attSel').onchange = e => manual('attitude', () => {
   if (v === 'pitch') F.setPitch(Math.max(0, Math.min(90, F.d.pitch))); else if (v !== 'off') F.setMode(v);
 });
 $('#takeBtn').onclick = () => { if (!F || !F.program) return; F.program.stop('Pilot took manual control'); F.manual('take-over'); armed = true; syncControls(); };
+$('#soundBtn').onclick = () => { SFX.toggle(); syncSoundBtn(); };
 $('#endBtn').onclick = () => { if (F && !F.done) { F.userEnded = true; F.end(); } openReport(); };
 $('#mapBtn').onclick = () => { mapOn = !mapOn; $('#mapcv').classList.toggle('hidden', !mapOn); $('#mapBtn').classList.toggle('on', mapOn); resizeFlight(); };
 $('#mapcv').addEventListener('wheel', e => { e.preventDefault(); mapZoom = Math.max(1, Math.min(60, mapZoom * (e.deltaY < 0 ? 1.25 : 0.8))); }, { passive: false });
@@ -523,6 +526,7 @@ window.addEventListener('keydown', e => {
   if (k === ' ') { e.preventDefault(); if (!armed) startProgram(); else doIgnite(); }
   else if (k === 'g') $('#stageBtn').click();
   else if (k === 'm') $('#mapBtn').click();
+  else if (k === 'n') $('#soundBtn').click();
   else if (k === 'w' || k === 's') { if (programActive()) return flashFlight('The flight program has control.'); const t = $('#thr'); t.value = +t.value + (k === 'w' ? 5 : -5); t.oninput({ target: t }); }
   else if (k === 'a' || k === 'arrowleft' || k === 'd' || k === 'arrowright') { if (programActive()) return; if (!F.pitchInput) F.manual('pitch'); F.pitchInput = (k === 'a' || k === 'arrowleft') ? -1 : 1; }
   else if (k === 'x') $('#cutBtn').click();
@@ -537,14 +541,40 @@ function loop(now) {
   if (!F.done && armed) {
     accum += real * warp; let n = 0;
     while (accum >= 0.01 && n < 4000 && !F.done) { F.step(0.01); accum -= 0.01; n++; }
-    if (F.done) { accum = 0; if (F.failure) boom = { t: now }; setWarp(1); }
+    if (F.done) {
+      accum = 0; setWarp(1);
+      const impact = !F.failure && F.liftoffT !== null && F.d.alt <= 1 && !F.userEnded;
+      if (F.failure || impact) { boom = { t: now, pending: true, ground: impact || F.d.alt < 50 }; SFX.explosion(Math.min(1, F.d.p / P0)); $('#banner').classList.add('hidden'); bannerKey = 'boom'; }
+    }
   }
+  fxEvents();
+  const e = F.veh.eng, running_ = F.throttle > 0 && F.prop > 0 && !F.done;
+  SFX.update({ thrust: running_ && e ? F.d.thrust / e.tvac : 0, air: F.d.p / P0, q: F.done ? 0 : F.d.q, mach: F.d.mach, solid: !!e && e.type === 'solid', warp });
+  const a = F._aux, caution = !F.done && !F.clamped && armed && (F.d.q > 0.85 * F.veh.qMax || (F.veh.payloads.length && F.sensedG > 0.85 * F.veh.gMax) || (a && F.d.q > 2000 && a.sina * F.d.q > 0.8 * LIMITS.qAlpha));
+  if (caution) SFX.alarm();
+  if (caution !== cautionOn) { cautionOn = caution; $('#caution').classList.toggle('hidden', !caution); }
   if (mapOn) drawMap(); else renderFlight(real, now);
   if (++hudTick % 3 === 0) renderHud();
-  if (F.done && !reportShown && (!boom || now - boom.t > 1600)) { reportShown = true; setTimeout(openReport, 250); }
+  if (F.done && !reportShown && (!boom || now - boom.t > 2800)) { reportShown = true; setTimeout(openReport, 250); }
   requestAnimationFrame(loop);
 }
 
+// One-shot sounds from the flight's own event log, so nothing is missed at high time warp.
+function fxEvents() {
+  while (fxEv < F.events.length) {
+    const m = F.events[fxEv++].msg, air = Math.min(1, F.d.p / P0);
+    if (/ignition$/i.test(m)) SFX.ignition(air);
+    else if (/ separation$/.test(m)) { SFX.separation(); pendingSep = true; }
+    else if (/cut-off|burnout|depleted/i.test(m)) SFX.cutoff(air);
+    else if (m === 'Supersonic') SFX.sonicBoom();
+    else if (m === F.mission.successMsg) SFX.chime();
+  }
+}
+function syncSoundBtn() {
+  const b = $('#soundBtn'); if (!b) return;
+  b.textContent = SFX.enabled ? 'Sound on' : 'Sound off'; b.setAttribute('aria-pressed', SFX.enabled); b.classList.toggle('on', SFX.enabled);
+  if (!SFX.available) { b.disabled = true; b.textContent = 'No sound'; }
+}
 function mix(a, b, t) { const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16); const c = i => Math.round(((pa >> i) & 255) * (1 - t) + ((pb >> i) & 255) * t); return `rgb(${c(16)},${c(8)},${c(0)})`; }
 function renderFlight(real, now) {
   const cv = $('#fcv'), ctx = cv.getContext('2d'), dpr = cv.width / cv.clientWidth, W = cv.clientWidth, H = cv.clientHeight;
@@ -566,6 +596,7 @@ function renderFlight(real, now) {
     const pg = ctx.createLinearGradient(0, topY, 0, H); pg.addColorStop(0, '#2F6FA8'); pg.addColorStop(0.3, '#1D4C7C'); pg.addColorStop(1, '#10304F');
     ctx.fillStyle = pg; ctx.beginPath(); ctx.arc(W / 2, cy, R, 0, 7); ctx.fill(); ctx.globalAlpha = 1;
   }
+  const [kx, ky] = FX.offset(); ctx.translate(kx, ky);
   const L = Math.max(veh.L, 6), sc = Math.min(H * 0.3, 210) / L, cx = W / 2, cy = H * 0.52;
   let shx = 0, shy = 0;
   if (!reduceMotion && !F.done && F.throttle > 0) { const s = Math.min(3, d.q / 20000 + (F.clamped ? 1.5 : 0)); shx = (Math.random() - 0.5) * s; shy = (Math.random() - 0.5) * s; }
@@ -577,6 +608,7 @@ function renderFlight(real, now) {
     ctx.strokeStyle = '#B04A2F'; ctx.lineWidth = 2; const tx = padX - DIAM * sc * 1.6, th = F.design ? buildVehicle(F.design).L * sc * 1.05 : L * sc;
     ctx.strokeRect(tx - 10, groundY - th, 10, th);
     for (let y = groundY - th; y < groundY; y += 14) { ctx.beginPath(); ctx.moveTo(tx - 10, y); ctx.lineTo(tx, y + 14); ctx.stroke(); }
+    if (F.throttle > 0 && F.prop > 0 && !F.done && alt < 600) for (let i = 0; i < 3; i++) FX.padSmoke({ x: padX, y: groundY, strength: F.throttle * (1 - alt / 600) });
   }
   const dens = Math.min(1, Math.sqrt(d.rho / 1.225)), vp = d.velPitch * DEG;
   if (dens > 0.02 && d.speed > 5 && !F.clamped) {
@@ -606,13 +638,21 @@ function renderFlight(real, now) {
       ctx.strokeStyle = '#8FE0BE'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, 7, 0, 7); ctx.stroke();
       for (const a of [0, Math.PI / 2, Math.PI]) { ctx.beginPath(); ctx.moveTo(x + Math.cos(a - vp) * 7, y + Math.sin(a - vp) * 7); ctx.lineTo(x + Math.cos(a - vp) * 13, y + Math.sin(a - vp) * 13); ctx.stroke(); }
     }
-  } else {
-    const k = Math.min(1, (now - boom.t) / 1400);
-    const gr = ctx.createRadialGradient(cx, cy, 0, cx, cy, 40 + 160 * k);
-    gr.addColorStop(0, `rgba(255,240,200,${1 - k})`); gr.addColorStop(0.4, `rgba(255,140,40,${0.8 * (1 - k)})`); gr.addColorStop(1, 'rgba(80,40,20,0)');
-    ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(cx, cy, 40 + 160 * k, 0, 7); ctx.fill();
-    ctx.fillStyle = '#3B424D'; for (let i = 0; i < 9; i++) { const a = i * 0.7 + 0.3, r = 20 + 180 * k * (0.5 + (i % 3) / 3); ctx.fillRect(cx + Math.cos(a) * r, cy + Math.sin(a) * r + 60 * k * k, 6, 4); }
   }
+  // effects: exhaust trail in the lower atmosphere, separation puffs, explosions
+  const ang = (90 - d.pitch) * DEG, tail = h => [cx - Math.sin(ang) * h, cy + Math.cos(ang) * h];
+  if (!boom && F.throttle > 0 && F.prop > 0 && !F.clamped && dens > 0.25) {
+    const [tx, ty] = tail((veh.L - mp.cg) * sc + 6), sp = Math.min(500, d.speed * sc * 0.5);
+    FX.trail({ x: tx, y: ty, vx: -Math.cos(vp) * sp, vy: Math.sin(vp) * sp, strength: (veh.eng.type === 'solid' ? 0.9 : 0.3) * dens });
+  }
+  if (pendingSep) { pendingSep = false; const [jx, jy] = tail((veh.L - mp.cg) * sc); FX.separation({ x: jx, y: jy, angle: ang, sc }); }
+  if (boom && boom.pending) {
+    boom.pending = false;
+    const y = boom.ground ? Math.min(groundY, cy + (veh.L - mp.cg) * sc) : cy;
+    FX.explode({ x: cx, y, air: Math.min(1, d.p / P0), sc, angle: ang, ground: boom.ground,
+      pieces: veh.items.map(it => ({ len: it.def.len, cat: it.def.cat, carbon: it.id.startsWith('tank_c') })) });
+  }
+  FX.draw(ctx, real, W, H);
 }
 function drawPlume(ctx, veh, sc, d) {
   const solid = veh.eng.type === 'solid', r = DIAM / 2 * sc, exp = 1 + 2.2 * (1 - Math.min(1, d.p / P0));
@@ -867,7 +907,7 @@ $('#rcv').addEventListener('pointermove', e => { hoverX = e.clientX - e.target.g
 $('#rcv').addEventListener('pointerleave', () => { hoverX = null; drawChart(); });
 $('#againBtn').onclick = () => { running = false; startFlight(); };
 function leaveFlight(to) {
-  running = false; $('#modal').classList.add('hidden'); $('#flight').classList.add('hidden'); $('#app').classList.remove('hidden');
+  running = false; SFX.silence(); FX.clear(); $('#modal').classList.add('hidden'); $('#flight').classList.add('hidden'); $('#app').classList.remove('hidden');
   const err = F && F.program && F.program.error; F = null; showScreen(to);
   if (to === 'program' && err && err.line) { refreshGutter(err.line); gotoLine(err.line); $('#output').innerHTML = `<div class="bad">The last flight halted the program: ${esc(err.message)} <button class="linkbtn" id="gotoErr">Line ${err.line}</button></div>`; $('#gotoErr').onclick = () => gotoLine(err.line); }
 }

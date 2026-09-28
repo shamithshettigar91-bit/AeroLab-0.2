@@ -49,8 +49,11 @@ Flight controls (manual flight, or after *Take manual control*):
 | A / D or ← / → | Pitch west / east |
 | X | Cut engine |
 | M | Map view; scroll to zoom |
+| N | Sound on / off |
 | , / . | Time warp down / up (1× to 100×) |
 | Esc | End flight and open the report |
+
+**Sound and effects.** Engines roar and crackle, and the sound thins to a muffled rumble as the air runs out. Wind builds with dynamic pressure, and every ignition, separation, cut-off and sonic boom has its own sound. A two-tone master-caution alarm sounds near the structural limits, and a chime plays when a mission objective is met. Every sound is synthesised in the browser, so there are no audio files. Crashes explode with a fireball, sparks, smoke and the rocket's own parts tumbling apart; on the ground they raise a dust cloud. Stage separation vents a puff of gas, and exhaust smoke rolls across the pad. The *Sound* button or N mutes it, and the choice is remembered. Browsers only start audio after a click or key press. With reduced motion set in the operating system, screen shake is off and effects are lighter.
 
 The attitude menu holds a pitch angle, surface prograde (along the airflow) or orbital prograde. While a program is flying, the manual controls are locked; **Take manual control** stops the program. The on-screen buttons do the same things on touch devices.
 
@@ -130,6 +133,7 @@ aerolab-v02/
 │   ├── core.js             Simulation core: parts, missions, atmosphere, staging, orbit, flight, failure analysis
 │   ├── flight_computer.js  Runs player flight programs: parse, guard, seed, and the ship API
 │   ├── programs.js         Reference rockets and example flight programs (data)
+│   ├── effects.js          Synthesised sound and particle effects (presentation only)
 │   ├── ui.js               Builder, program editor, flight view, map, reports (reads state only)
 │   └── template.html       Page structure and styles
 ├── vendor/acorn.js         JavaScript parser used to check and guard programs (MIT licence)
