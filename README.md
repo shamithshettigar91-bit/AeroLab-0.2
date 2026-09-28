@@ -23,6 +23,8 @@ Build. Simulate. Explore. Design multi-stage rockets, program their flight compu
 
 ## Play
 
+New players: read `docs/HOW_TO_PLAY.pdf`, a 10-page illustrated manual covering building, flying, programming and every mission.
+
 Open `index.html` in any modern browser (Chrome, Edge, Firefox, Safari). No install or server is needed. Everything runs offline except the Barlow and JetBrains Mono web fonts, which fall back to system fonts without a connection.
 
 1. **Pick a mission** in the top-right menu. Each mission names a reference rocket you can load with one click.
@@ -153,6 +155,7 @@ aerolab-v02/
 │   ├── flight-tests.js     75 headless tests of the core and flight computer
 │   └── test_experiments.py 10 reproducibility tests
 ├── docs/
+│   ├── HOW_TO_PLAY.pdf     Illustrated player manual (10 pages)
 │   ├── PROGRAMMING_GUIDE.md How to write flight programs, from hello to orbit
 │   ├── PHYSICS_MODEL.md    Equations, assumptions and limits
 │   └── PROJECT_REPORT.md   Full hand-off report: decisions, balance, change log
